@@ -38,16 +38,18 @@ export default async function DashboardPage() {
           Here is everything you have access to.
         </p>
 
-        <section className="mt-12 grid gap-px border border-hairline/15 bg-hairline/15 sm:grid-cols-2">
+        <section className="mt-12 divide-y divide-hairline/15 border-y border-hairline/15">
           {tiles.map((t) => (
             <a
               key={t.href}
               href={t.href}
-              className="group bg-paper p-7 transition-colors hover:bg-ivory-deep"
+              className="group flex items-center justify-between gap-6 bg-paper px-7 py-6 transition-colors hover:bg-ivory-deep"
             >
-              <h2 className="font-serif text-2xl text-ink">{t.title}</h2>
-              <p className="mt-1 text-sm text-ink-mute">{t.desc}</p>
-              <span className="mt-5 inline-block text-eyebrow uppercase text-gold-deep opacity-0 transition-opacity group-hover:opacity-100">
+              <div>
+                <h2 className="font-serif text-2xl text-ink">{t.title}</h2>
+                <p className="mt-0.5 text-sm text-ink-mute">{t.desc}</p>
+              </div>
+              <span className="text-eyebrow uppercase text-gold-deep opacity-60 transition-opacity group-hover:opacity-100">
                 Open →
               </span>
             </a>

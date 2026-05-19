@@ -8,18 +8,19 @@ import { permissionsFor } from "@/lib/roles";
 import { listProperties } from "@/lib/repo/properties";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Header } from "@/components/Header";
+import { formatUsd } from "@/lib/format";
 
 export default async function PropertiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ region?: string; status?: string; type?: string }>;
+  searchParams: Promise<{ city?: string; status?: string; type?: string }>;
 }) {
   const user = await getSession();
   if (!user) redirect("/login");
   const sp = await searchParams;
 
   let rows = await listProperties({ role: user.role, userId: user.id });
-  if (sp.region) rows = rows.filter((p) => p.region === sp.region);
+  if (sp.city) rows = rows.filter((p) => p.city === sp.city);
   if (sp.status) rows = rows.filter((p) => p.status === sp.status);
   if (sp.type) rows = rows.filter((p) => p.propertyType === sp.type);
 
@@ -42,7 +43,7 @@ export default async function PropertiesPage({
       </div>
 
       <form className="mt-8 flex flex-wrap gap-3 text-sm">
-        <input name="region" defaultValue={sp.region} placeholder="Region"
+        <input name="city" defaultValue={sp.city} placeholder="City"
           className="border border-hairline/20 bg-ivory px-3 py-1.5" />
         <select name="status" defaultValue={sp.status ?? ""}
           className="border border-hairline/20 bg-ivory px-3 py-1.5">
@@ -72,8 +73,11 @@ export default async function PropertiesPage({
             <div>
               <p className="font-serif text-xl">{p.title || "Untitled"}</p>
               <p className="text-xs text-ash">
-                {p.referenceNumber} · {p.region || "—"} · {p.propertyType || "—"}
+                {p.referenceNumber} · {[p.city, p.country].filter(Boolean).join(", ") || "—"} · {p.propertyType || "—"}
               </p>
+              {p.price != null && (
+                <p className="mt-0.5 text-sm text-ink-mute">{formatUsd(p.price)}</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {p.isPrivate && (

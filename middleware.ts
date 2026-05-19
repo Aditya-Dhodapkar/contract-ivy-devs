@@ -1,11 +1,12 @@
-// Route guard: the entire back office is private. Anyone without a valid
-// session is bounced to /login. Deliverables #1, #5, and the brief's hard
-// rule that visitors never see this area.
+// Route guard: the entire back office is private. Pages bounce to /login;
+// API routes return a JSON 401 (so the browser/fetch sees a real error rather
+// than HTML). /uploads is public — files are served as static assets with
+// unguessable random keys; sensitive docs go through a separate auth'd path.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, SESSION_COOKIE } from "@/lib/auth";
 
-const PUBLIC = ["/login"];
+const PUBLIC = ["/login", "/uploads"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -13,16 +14,19 @@ export async function middleware(req: NextRequest) {
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const user = token ? await verifyToken(token) : null;
+  if (user) return NextResponse.next();
 
-  if (!user) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+  // API: return 401 JSON, not an HTML redirect.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
-  return NextResponse.next();
+  // Pages: bounce to /login.
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  return NextResponse.redirect(url);
 }
 
 export const config = {
-  // Guard everything except Next internals and the login API.
+  // Skip Next internals, favicon, and the public login API.
   matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/login).*)"],
 };

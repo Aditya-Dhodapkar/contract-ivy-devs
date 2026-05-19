@@ -19,13 +19,18 @@ export interface PropertyRecord {
   id: string;
   referenceNumber: string; // immutable once set
   title?: string;
-  region?: string;
+  country?: string;
+  city?: string;
   propertyType?: PropertyType;
-  price?: number;
+  price?: number; // stored in USD (currency confirmed with client at handoff)
   bedrooms?: number;
   bathrooms?: number;
   plotSize?: string;
+  builtArea?: string;
   description?: string;
+  highlights?: string[];
+  amenities?: string[];
+  nearby?: string;
   photos?: string[];
   floorPlan?: string;
   assignedAgentId?: string;

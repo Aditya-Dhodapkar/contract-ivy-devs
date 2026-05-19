@@ -47,7 +47,8 @@ const complete = {
   title: "Villa",
   description: "Lovely",
   price: 1000000,
-  region: "Lamu",
+  city: "Lamu",
+  country: "Kenya",
   propertyType: "house" as const,
   bedrooms: 4,
   bathrooms: 3,
@@ -84,7 +85,7 @@ t("beds/baths required only for houses", () => {
   assert.ok(checklist(house, true).missing.includes("Bedrooms"));
 });
 t("each core field individually blocks", () => {
-  for (const k of ["title", "description", "region", "plotSize"] as const) {
+  for (const k of ["title", "description", "city", "plotSize"] as const) {
     const r = checklist({ ...complete, [k]: undefined }, true);
     assert.equal(r.ok, false, k + " should block");
   }

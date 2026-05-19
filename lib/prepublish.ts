@@ -22,7 +22,7 @@ export function checklist(
   if (!p.title?.trim()) missing.push("Title");
   if (!p.description?.trim()) missing.push("Description");
   if (p.price == null || p.price <= 0) missing.push("Price");
-  if (!p.region?.trim()) missing.push("Region");
+  if (!p.city?.trim()) missing.push("City");
 
   // Bedrooms/bathrooms only required for houses (brief: "if it's a house").
   if (p.propertyType === "house") {
