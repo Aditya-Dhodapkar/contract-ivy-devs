@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens mirrored from the public site (sansiwebsite/app/globals.css). */
+:root {
+  --ivory: 241 236 223;
+  --paper: 250 246 235;
+  --ivory-deep: 231 223 200;
+  --gold: 168 138 76;
+  --gold-deep: 126 101 51;
+  --ink: 20 19 15;
+  --ink-mute: 79 74 63;
+  --ash: 139 132 120;
+  --hairline: 20 19 15;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100%;
+  background: rgb(var(--ivory));
+  color: rgb(var(--ink));
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display), "Cormorant Garamond", Garamond, serif;
+  font-weight: 300;
+}
