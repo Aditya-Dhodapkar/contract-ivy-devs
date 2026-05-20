@@ -21,7 +21,12 @@ export const DEV_USERS: DevUser[] = [
   { id: "dev-agent", name: "Nairobi Agent", email: "agent@test.com", role: "agent", passwordHash: HASH },
 ];
 
-export const usingDevUsers = process.env.USE_DEV_USERS === "true";
+// Single flag that gates the whole dev backend (users + properties + storage).
+// USE_DEV_DATA is the canonical name; USE_DEV_USERS is kept as a backward-
+// compat alias for one release so existing .env.local files keep working.
+export const usingDevData =
+  process.env.USE_DEV_DATA === "true" || process.env.USE_DEV_USERS === "true";
+export const usingDevUsers = usingDevData; // legacy alias — prefer usingDevData
 
 export function findDevUser(email: string) {
   return DEV_USERS.find((u) => u.email === email) || null;

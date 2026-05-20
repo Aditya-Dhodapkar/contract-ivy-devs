@@ -2,7 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "cdn.sanity.io" }],
+    // Supabase Storage public URLs live at *.supabase.co
+    remotePatterns: [{ protocol: "https", hostname: "**.supabase.co" }],
   },
 };
 

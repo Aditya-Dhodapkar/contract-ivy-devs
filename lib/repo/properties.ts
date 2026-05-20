@@ -1,19 +1,20 @@
-// Data-access layer for properties. Mirrors the lib/devUsers.ts fallback:
-// a file-backed JSON backend for dev/testing now, a Sanity backend for
-// production later. Swapping is an env change, not a logic rewrite.
+// Data-access layer for properties. Two interchangeable backends:
+//   - dev:  JSON file at .devdata/properties.json   (USE_DEV_DATA=true)
+//   - prod: Supabase Postgres                       (USE_DEV_DATA=false)
 //
 // Business rules (reference numbers, checklist, RBAC scoping) live OUTSIDE
 // this file so they're testable without any backend.
 
 import { promises as fs } from "fs";
 import path from "path";
-import { sanity } from "@/lib/sanity";
-import { usingDevUsers } from "@/lib/devUsers";
+import { usingDevData } from "@/lib/devUsers";
+import { supabase } from "@/lib/supabase";
 import { nextReference } from "@/lib/referenceNumber";
 import type { Role } from "@/lib/roles";
 
 export type PropertyStatus = "draft" | "active" | "sold" | "rented";
 export type PropertyType = "house" | "apartment" | "land" | "commercial";
+export type PropertyApproval = "pending" | "approved" | "changes_requested";
 
 export interface PropertyRecord {
   id: string;
@@ -22,7 +23,7 @@ export interface PropertyRecord {
   country?: string;
   city?: string;
   propertyType?: PropertyType;
-  price?: number; // KES (Kenyan Shillings)
+  price?: number; // KES
   bedrooms?: number;
   bathrooms?: number;
   yearBuilt?: number;
@@ -42,27 +43,99 @@ export interface PropertyRecord {
   isPrivate: boolean;
   accessCode?: string;
   createdAt: string;
-  /** Client-issued UUID per form mount; dedupes double-clicks & retries. */
   idempotencyKey?: string;
-  /** Approval workflow: non-Owner work goes to "pending" before it can publish. */
   approval: PropertyApproval;
   changesRequestedNote?: string;
 }
-
-export type PropertyApproval = "pending" | "approved" | "changes_requested";
 
 export interface ListScope {
   role: Role;
   userId: string;
 }
 
-// Agents only ever see their own assigned properties (#51). Everyone else
-// sees all. Deletion never happens here for non-owners — enforced upstream
-// in the server action, and there is simply no hard-delete in the dev store
-// beyond the owner path.
+// Agents see only their own assigned properties (#51). Everyone else sees all.
 function visibleTo(scope: ListScope, p: PropertyRecord): boolean {
   if (scope.role === "agent") return p.assignedAgentId === scope.userId;
   return true;
+}
+
+/* ------------------- row ↔ record mapping (prod only) ------------------- */
+
+type Row = Record<string, unknown>;
+
+function toRow(rec: Partial<PropertyRecord>): Row {
+  // Map every camelCase field to its snake_case column. Undefined fields are
+  // stripped before .insert/.update so they don't blank existing values.
+  const row: Row = {
+    id: rec.id,
+    reference_number: rec.referenceNumber,
+    title: rec.title,
+    country: rec.country,
+    city: rec.city,
+    property_type: rec.propertyType,
+    price: rec.price,
+    bedrooms: rec.bedrooms,
+    bathrooms: rec.bathrooms,
+    year_built: rec.yearBuilt,
+    year_restored: rec.yearRestored,
+    plot_size: rec.plotSize,
+    built_area: rec.builtArea,
+    description: rec.description,
+    highlights: rec.highlights,
+    amenities: rec.amenities,
+    nearby: rec.nearby,
+    photos: rec.photos,
+    floor_plan: rec.floorPlan,
+    assigned_agent_id: rec.assignedAgentId,
+    seller_id: rec.sellerId,
+    status: rec.status,
+    show_on_website: rec.showOnWebsite,
+    is_private: rec.isPrivate,
+    access_code: rec.accessCode,
+    approval: rec.approval,
+    changes_requested_note: rec.changesRequestedNote,
+    idempotency_key: rec.idempotencyKey,
+    created_at: rec.createdAt,
+  };
+  return compact(row);
+}
+
+function fromRow(r: Row): PropertyRecord {
+  return {
+    id: r.id as string,
+    referenceNumber: r.reference_number as string,
+    title: (r.title as string) ?? undefined,
+    country: (r.country as string) ?? undefined,
+    city: (r.city as string) ?? undefined,
+    propertyType: (r.property_type as PropertyType) ?? undefined,
+    price: r.price == null ? undefined : Number(r.price),
+    bedrooms: (r.bedrooms as number) ?? undefined,
+    bathrooms: (r.bathrooms as number) ?? undefined,
+    yearBuilt: (r.year_built as number) ?? undefined,
+    yearRestored: (r.year_restored as number) ?? undefined,
+    plotSize: (r.plot_size as string) ?? undefined,
+    builtArea: (r.built_area as string) ?? undefined,
+    description: (r.description as string) ?? undefined,
+    highlights: (r.highlights as string[]) ?? undefined,
+    amenities: (r.amenities as string[]) ?? undefined,
+    nearby: (r.nearby as PropertyRecord["nearby"]) ?? undefined,
+    photos: (r.photos as string[]) ?? undefined,
+    floorPlan: (r.floor_plan as string) ?? undefined,
+    assignedAgentId: (r.assigned_agent_id as string) ?? undefined,
+    sellerId: (r.seller_id as string) ?? undefined,
+    status: r.status as PropertyStatus,
+    showOnWebsite: !!r.show_on_website,
+    isPrivate: !!r.is_private,
+    accessCode: (r.access_code as string) ?? undefined,
+    createdAt: r.created_at as string,
+    idempotencyKey: (r.idempotency_key as string) ?? undefined,
+    approval: r.approval as PropertyApproval,
+    changesRequestedNote: (r.changes_requested_note as string) ?? undefined,
+  };
+}
+
+function compact<T extends Record<string, unknown>>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
 
 /* ----------------------------- dev backend ----------------------------- */
@@ -76,39 +149,13 @@ async function devReadAll(): Promise<PropertyRecord[]> {
     return [];
   }
 }
-
 async function devWriteAll(rows: PropertyRecord[]): Promise<void> {
   await fs.mkdir(path.dirname(DEV_FILE), { recursive: true });
   await fs.writeFile(DEV_FILE, JSON.stringify(rows, null, 2));
 }
 
-/* --------------------------- public repo API --------------------------- */
-
-export async function listProperties(scope: ListScope): Promise<PropertyRecord[]> {
-  if (usingDevUsers) {
-    const all = await devReadAll();
-    return all.filter((p) => visibleTo(scope, p));
-  }
-  const all: PropertyRecord[] = await sanity.fetch(
-    `*[_type == "property"]{ "id": _id, ..., "assignedAgentId": assignedAgent->_id }`
-  );
-  return all.filter((p) => visibleTo(scope, p));
-}
-
-export async function getProperty(id: string): Promise<PropertyRecord | null> {
-  if (usingDevUsers) {
-    return (await devReadAll()).find((p) => p.id === id) ?? null;
-  }
-  return sanity.fetch(
-    `*[_type == "property" && _id == $id][0]{ "id": _id, ..., "assignedAgentId": assignedAgent->_id }`,
-    { id }
-  );
-}
-
-// Serialises create-ops in the dev backend so two concurrent POSTs can't both
-// pass the idempotency check before either has written, nor race the
-// reference-number sequence. Production Sanity would use a transaction or a
-// unique constraint instead — noted for the swap.
+// Dev mutex: in-process lock so two concurrent POSTs can't race the file.
+// Production uses Postgres unique indexes instead (see createProperty).
 let createMutex: Promise<unknown> = Promise.resolve();
 function withCreateLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = createMutex.then(fn, fn);
@@ -116,17 +163,44 @@ function withCreateLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/* --------------------------- public repo API --------------------------- */
+
+export async function listProperties(scope: ListScope): Promise<PropertyRecord[]> {
+  if (usingDevData) {
+    const all = await devReadAll();
+    return all.filter((p) => visibleTo(scope, p));
+  }
+  let q = supabase().from("properties").select("*").order("created_at", { ascending: false });
+  if (scope.role === "agent") q = q.eq("assigned_agent_id", scope.userId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(fromRow);
+}
+
+export async function getProperty(id: string): Promise<PropertyRecord | null> {
+  if (usingDevData) {
+    return (await devReadAll()).find((p) => p.id === id) ?? null;
+  }
+  const { data, error } = await supabase()
+    .from("properties")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? fromRow(data) : null;
+}
+
 export async function createProperty(
   data: Partial<PropertyRecord>,
   creatorRole?: Role
 ): Promise<PropertyRecord> {
   const year = new Date().getFullYear();
-  // Owner-created listings are pre-approved; everything else enters the
-  // approval queue.
+  // Owner-created → pre-approved; everyone else → pending.
   const initialApproval: PropertyApproval =
     creatorRole === "owner" ? "approved" : "pending";
+  const newId = `prop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  if (usingDevUsers) {
+  if (usingDevData) {
     return withCreateLock(async () => {
       const all = await devReadAll();
       if (data.idempotencyKey) {
@@ -134,45 +208,75 @@ export async function createProperty(
         if (prior) return prior;
       }
       const record: PropertyRecord = {
-        id: `prop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: newId,
         referenceNumber: nextReference(all.map((p) => p.referenceNumber), year),
         status: "draft",
         showOnWebsite: false,
         isPrivate: false,
         createdAt: new Date().toISOString(),
         ...data,
-        approval: initialApproval, // never let the client override this
+        approval: initialApproval,
       };
       await devWriteAll([...all, record]);
       return record;
     });
   }
+
+  // --- Supabase production path ---
+  const sb = supabase();
+  // 1. Idempotency: if a record with this key already exists, return it as-is.
   if (data.idempotencyKey) {
-    const prior = await sanity.fetch(
-      `*[_type == "property" && idempotencyKey == $k][0]{ "id": _id, ... }`,
-      { k: data.idempotencyKey }
-    );
-    if (prior) return prior;
+    const { data: prior } = await sb
+      .from("properties")
+      .select("*")
+      .eq("idempotency_key", data.idempotencyKey)
+      .maybeSingle();
+    if (prior) return fromRow(prior);
   }
-  const existing: string[] = await sanity.fetch(
-    `*[_type == "property"].referenceNumber`
-  );
-  const reference = nextReference(existing, year);
-  const created = await sanity.create({
-    _type: "property",
-    referenceNumber: reference,
-    status: "draft",
-    showOnWebsite: false,
-    isPrivate: false,
-    ...data,
-    approval: initialApproval,
-  });
-  return { ...(created as any), id: created._id };
+  // 2. Allocate a reference number, then insert. The UNIQUE index on
+  //    reference_number catches concurrent collisions; we retry with a
+  //    bumped sequence in that case.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing } = await sb
+      .from("properties")
+      .select("reference_number")
+      .like("reference_number", `SA-${year}-%`);
+    const refs = (existing ?? []).map((r: { reference_number: string }) => r.reference_number);
+    const reference = nextReference(refs, year);
+    const row = toRow({
+      id: newId,
+      status: "draft",
+      showOnWebsite: false,
+      isPrivate: false,
+      createdAt: new Date().toISOString(),
+      ...data,
+      referenceNumber: reference,
+      approval: initialApproval,
+    });
+    const { data: inserted, error } = await sb
+      .from("properties")
+      .insert(row)
+      .select()
+      .single();
+    if (!error && inserted) return fromRow(inserted);
+    // Idempotency-key race lost — another request beat us; return that record.
+    if (error?.code === "23505" && /idempotency/i.test(error.message)) {
+      const { data: prior } = await sb
+        .from("properties")
+        .select("*")
+        .eq("idempotency_key", data.idempotencyKey!)
+        .maybeSingle();
+      if (prior) return fromRow(prior);
+    }
+    // Reference-number collision — bump and retry.
+    if (error?.code === "23505" && /reference_number/i.test(error.message)) continue;
+    throw new Error(error?.message ?? "Insert failed");
+  }
+  throw new Error("Could not allocate a unique reference number after 5 attempts");
 }
 
-// referenceNumber is intentionally never patched — it is immutable (#22).
-// approval is only set via the dedicated approve/request-changes endpoints,
-// never via this generic PATCH — we strip it here to be safe.
+// referenceNumber is immutable (#22). approval is set via dedicated endpoints
+// (approve / request-changes) and stripped from generic PATCH bodies here.
 export async function updateProperty(
   id: string,
   patch: Partial<PropertyRecord>,
@@ -185,12 +289,9 @@ export async function updateProperty(
     changesRequestedNote: _ignoreNote,
     ...safe
   } = patch;
-
-  // Non-Owner edits flip the record back to "pending" and clear any prior
-  // changes-requested note (their edit is their response to the request).
   const nonOwnerEdit = editorRole !== undefined && editorRole !== "owner";
 
-  if (usingDevUsers) {
+  if (usingDevData) {
     const all = await devReadAll();
     const i = all.findIndex((p) => p.id === id);
     if (i === -1) throw new Error("not found");
@@ -203,33 +304,45 @@ export async function updateProperty(
     await devWriteAll(all);
     return next;
   }
-  const patcher = sanity.patch(id).set(safe);
+
+  const sb = supabase();
+  const update = toRow(safe);
   if (nonOwnerEdit) {
-    patcher.set({ approval: "pending" }).unset(["changesRequestedNote"]);
+    update.approval = "pending";
+    update.changes_requested_note = null; // explicit null clears the column
   }
-  const updated = await patcher.commit();
-  return { ...(updated as any), id: updated._id };
+  const { data, error } = await sb
+    .from("properties")
+    .update(update)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return fromRow(data);
 }
 
-/** How many properties are currently assigned to this user — used as the
- *  guard against orphaning when an Owner tries to delete an agent. */
 export async function countPropertiesAssignedTo(userId: string): Promise<number> {
-  if (usingDevUsers) {
-    const all = await devReadAll();
-    return all.filter((p) => p.assignedAgentId === userId).length;
+  if (usingDevData) {
+    return (await devReadAll()).filter((p) => p.assignedAgentId === userId).length;
   }
-  return sanity.fetch(
-    `count(*[_type == "property" && assignedAgent->_id == $id])`,
-    { id: userId }
-  );
+  const { count, error } = await supabase()
+    .from("properties")
+    .select("id", { count: "exact", head: true })
+    .eq("assigned_agent_id", userId);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export async function countPendingApprovals(): Promise<number> {
-  if (usingDevUsers) {
-    const all = await devReadAll();
-    return all.filter((p) => p.approval === "pending").length;
+  if (usingDevData) {
+    return (await devReadAll()).filter((p) => p.approval === "pending").length;
   }
-  return sanity.fetch(`count(*[_type == "property" && approval == "pending"])`);
+  const { count, error } = await supabase()
+    .from("properties")
+    .select("id", { count: "exact", head: true })
+    .eq("approval", "pending");
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 /** Owner action — set approval explicitly. */
@@ -238,7 +351,7 @@ export async function setApproval(
   approval: PropertyApproval,
   note?: string
 ): Promise<PropertyRecord> {
-  if (usingDevUsers) {
+  if (usingDevData) {
     const all = await devReadAll();
     const i = all.findIndex((p) => p.id === id);
     if (i === -1) throw new Error("not found");
@@ -250,22 +363,27 @@ export async function setApproval(
     await devWriteAll(all);
     return all[i];
   }
-  const patcher = sanity.patch(id).set({ approval });
-  if (approval === "changes_requested") {
-    patcher.set({ changesRequestedNote: note ?? "" });
-  } else {
-    patcher.unset(["changesRequestedNote"]);
-  }
-  const updated = await patcher.commit();
-  return { ...(updated as any), id: updated._id };
+  const sb = supabase();
+  const { data, error } = await sb
+    .from("properties")
+    .update({
+      approval,
+      changes_requested_note: approval === "changes_requested" ? (note ?? "") : null,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return fromRow(data);
 }
 
-// Hard delete. Caller MUST gate this to the Owner (brief non-negotiable #1).
+// Hard delete. Caller MUST gate to the Owner (brief non-negotiable #1).
 export async function deleteProperty(id: string): Promise<void> {
-  if (usingDevUsers) {
+  if (usingDevData) {
     const all = await devReadAll();
     await devWriteAll(all.filter((p) => p.id !== id));
     return;
   }
-  await sanity.delete(id);
+  const { error } = await supabase().from("properties").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }

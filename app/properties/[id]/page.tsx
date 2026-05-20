@@ -10,6 +10,8 @@ import { getProperty } from "@/lib/repo/properties";
 import { PropertyForm } from "@/components/PropertyForm";
 import { PropertyControls } from "@/components/PropertyControls";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ApprovalBadge } from "@/components/ApprovalBadge";
+import { WebsiteBadge } from "@/components/WebsiteBadge";
 import { Header } from "@/components/Header";
 import { formatKes } from "@/lib/format";
 
@@ -61,7 +63,11 @@ export default async function PropertyDetail({
             {p.referenceNumber} · {[p.city, p.country].filter(Boolean).join(", ") || "—"} · {p.propertyType || "—"}
           </p>
         </div>
-        <StatusBadge status={p.status} />
+        <div className="flex items-center gap-2">
+          <ApprovalBadge approval={p.approval} />
+          <StatusBadge status={p.status} />
+          <WebsiteBadge live={p.showOnWebsite} />
+        </div>
       </div>
 
       {p.photos && p.photos.length > 0 && (

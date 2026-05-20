@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ModalShell, modalBtnCancel, modalBtnDanger } from "./ModalShell";
 
 export function DeactivateButton({ id, active }: { id: string; active: boolean }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function toggle() {
-    if (active && !confirm("Deactivate this user? They will no longer be able to sign in.")) return;
+  async function go() {
     setLoading(true);
     setError("");
     const res = await fetch(`/api/users/${id}/deactivate`, {
@@ -18,6 +19,7 @@ export function DeactivateButton({ id, active }: { id: string; active: boolean }
     });
     setLoading(false);
     if (res.ok) {
+      setOpen(false);
       router.refresh();
     } else {
       const j = await res.json().catch(() => ({}));
@@ -26,9 +28,14 @@ export function DeactivateButton({ id, active }: { id: string; active: boolean }
   }
 
   return (
-    <div>
+    <>
       <button
-        onClick={toggle}
+        onClick={() => {
+          // Reactivation is harmless — no confirm needed; do it immediately.
+          if (!active) return go();
+          setOpen(true);
+          setError("");
+        }}
         disabled={loading}
         className={
           active
@@ -38,7 +45,25 @@ export function DeactivateButton({ id, active }: { id: string; active: boolean }
       >
         {loading ? "Working…" : active ? "Deactivate user" : "Reactivate user"}
       </button>
-      {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-    </div>
+      {!open && error && <p className="mt-2 text-xs text-red-700">{error}</p>}
+      <ModalShell
+        open={open}
+        onClose={() => !loading && setOpen(false)}
+        title="Deactivate this user?"
+        actions={
+          <>
+            <button onClick={() => setOpen(false)} className={modalBtnCancel} disabled={loading}>
+              Cancel
+            </button>
+            <button onClick={go} className={modalBtnDanger} disabled={loading}>
+              {loading ? "Working…" : "Deactivate"}
+            </button>
+          </>
+        }
+      >
+        <p>They won't be able to sign in until you reactivate them. Their record stays intact.</p>
+        {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      </ModalShell>
+    </>
   );
 }

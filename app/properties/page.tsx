@@ -8,6 +8,7 @@ import { permissionsFor } from "@/lib/roles";
 import { listProperties } from "@/lib/repo/properties";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApprovalBadge } from "@/components/ApprovalBadge";
+import { WebsiteBadge } from "@/components/WebsiteBadge";
 import { Header } from "@/components/Header";
 import { formatKes } from "@/lib/format";
 
@@ -95,6 +96,7 @@ export default async function PropertiesPage({
                   <span className="text-eyebrow uppercase text-ash">Private</span>
                 )}
                 <StatusBadge status={p.status} />
+                <WebsiteBadge live={p.showOnWebsite} />
               </div>
             </div>
           </Link>
