@@ -25,11 +25,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Taking it OFF the website is always allowed.
   if (show === false) {
-    const updated = await updateProperty(id, { showOnWebsite: false });
+    const updated = await updateProperty(id, { showOnWebsite: false }, user.role);
     return NextResponse.json({ property: updated });
   }
 
-  // Going live: must pass the checklist.
+  // Going live: must be Owner-approved AND pass the pre-publish checklist.
+  if (prop.approval !== "approved") {
+    return NextResponse.json(
+      {
+        error:
+          prop.approval === "changes_requested"
+            ? "Cannot publish — the Owner requested changes."
+            : "Cannot publish — pending Owner approval.",
+        approval: prop.approval,
+      },
+      { status: 422 }
+    );
+  }
   const result = checklist(prop, await hasMandateDoc(id));
   if (!result.ok) {
     return NextResponse.json(
@@ -37,6 +49,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 422 }
     );
   }
-  const updated = await updateProperty(id, { showOnWebsite: true });
+  const updated = await updateProperty(id, { showOnWebsite: true }, user.role);
   return NextResponse.json({ property: updated });
 }

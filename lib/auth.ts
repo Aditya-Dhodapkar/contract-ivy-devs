@@ -15,6 +15,8 @@ export interface SessionUser {
   name: string;
   email: string;
   role: Role;
+  /** Set after an admin reset; the UI prompts the user to change before continuing. */
+  mustChangePassword?: boolean;
 }
 
 function secret(): Uint8Array {
@@ -49,6 +51,7 @@ export async function getSession(): Promise<SessionUser | null> {
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as Role,
+      mustChangePassword: payload.mustChangePassword as boolean | undefined,
     };
   } catch {
     return null;
@@ -68,6 +71,7 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as Role,
+      mustChangePassword: payload.mustChangePassword as boolean | undefined,
     };
   } catch {
     return null;

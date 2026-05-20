@@ -37,7 +37,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const patch = await req.json().catch(() => ({}));
-  const updated = await updateProperty(id, patch);
+  const updated = await updateProperty(id, patch, user.role);
   return NextResponse.json({ property: updated });
 }
 

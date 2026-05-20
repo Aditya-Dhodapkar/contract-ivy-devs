@@ -148,6 +148,18 @@ export const property = {
       hidden: true,
       description: "Per-form-mount UUID. Dedupes double-submits.",
     },
+    {
+      name: "approval",
+      title: "Approval state",
+      type: "string",
+      options: { list: ["pending", "approved", "changes_requested"] },
+      initialValue: "pending",
+    },
+    {
+      name: "changesRequestedNote",
+      title: "Changes requested note",
+      type: "text",
+    },
   ],
   preview: {
     select: { title: "title", subtitle: "referenceNumber" },

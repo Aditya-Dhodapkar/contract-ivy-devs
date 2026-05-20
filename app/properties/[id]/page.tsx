@@ -87,7 +87,7 @@ export default async function PropertyDetail({
           </h2>
           <div className="mt-4">
             {canEdit ? (
-              <PropertyForm existing={p} />
+              <PropertyForm existing={p} currentUserRole={user.role} />
             ) : (
               <>
               <dl className="space-y-2 text-sm">

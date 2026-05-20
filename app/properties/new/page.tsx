@@ -20,7 +20,7 @@ export default async function NewPropertyPage() {
         A reference number is assigned automatically on save.
       </p>
       <div className="mt-8">
-        <PropertyForm />
+        <PropertyForm currentUserRole={user.role} />
       </div>
       </div>
     </div>

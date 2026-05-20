@@ -7,13 +7,14 @@ import { getSession } from "@/lib/auth";
 import { permissionsFor } from "@/lib/roles";
 import { listProperties } from "@/lib/repo/properties";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ApprovalBadge } from "@/components/ApprovalBadge";
 import { Header } from "@/components/Header";
 import { formatKes } from "@/lib/format";
 
 export default async function PropertiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ city?: string; status?: string; type?: string }>;
+  searchParams: Promise<{ city?: string; status?: string; type?: string; approval?: string }>;
 }) {
   const user = await getSession();
   if (!user) redirect("/login");
@@ -23,6 +24,7 @@ export default async function PropertiesPage({
   if (sp.city) rows = rows.filter((p) => p.city === sp.city);
   if (sp.status) rows = rows.filter((p) => p.status === sp.status);
   if (sp.type) rows = rows.filter((p) => p.propertyType === sp.type);
+  if (sp.approval) rows = rows.filter((p) => p.approval === sp.approval);
 
   const canCreate = permissionsFor(user.role).createProperty;
 
@@ -55,6 +57,13 @@ export default async function PropertiesPage({
           <option value="">Any type</option>
           {["house", "apartment", "land", "commercial"].map((t) => <option key={t}>{t}</option>)}
         </select>
+        <select name="approval" defaultValue={sp.approval ?? ""}
+          className="border border-hairline/20 bg-ivory px-3 py-1.5">
+          <option value="">Any approval</option>
+          <option value="pending">Pending review</option>
+          <option value="approved">Approved</option>
+          <option value="changes_requested">Changes requested</option>
+        </select>
         <button className="border border-hairline/30 px-3 py-1.5 text-eyebrow uppercase">
           Filter
         </button>
@@ -79,11 +88,14 @@ export default async function PropertiesPage({
                 <p className="mt-0.5 text-sm text-ink-mute">{formatKes(p.price)}</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {p.isPrivate && (
-                <span className="text-eyebrow uppercase text-ash">Private</span>
-              )}
-              <StatusBadge status={p.status} />
+            <div className="flex flex-col items-end gap-1">
+              <ApprovalBadge approval={p.approval} />
+              <div className="flex items-center gap-2">
+                {p.isPrivate && (
+                  <span className="text-eyebrow uppercase text-ash">Private</span>
+                )}
+                <StatusBadge status={p.status} />
+              </div>
             </div>
           </Link>
         ))}

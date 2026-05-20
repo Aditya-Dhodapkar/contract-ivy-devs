@@ -22,6 +22,6 @@ export async function POST(req: Request) {
   const assignedAgentId =
     g.user.role === "agent" ? g.user.id : body.assignedAgentId;
 
-  const created = await createProperty({ ...body, assignedAgentId });
+  const created = await createProperty({ ...body, assignedAgentId }, g.user.role);
   return NextResponse.json({ property: created }, { status: 201 });
 }

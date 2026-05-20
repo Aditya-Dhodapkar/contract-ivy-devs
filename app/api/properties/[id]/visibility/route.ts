@@ -34,6 +34,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ? { isPrivate: true, accessCode: accessCode.trim(), showOnWebsite: false }
       : { isPrivate: false, accessCode: undefined };
 
-  const updated = await updateProperty(id, patch);
+  const updated = await updateProperty(id, patch, user.role);
   return NextResponse.json({ property: updated });
 }

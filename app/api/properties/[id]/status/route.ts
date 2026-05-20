@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
-  const updated = await updateProperty(id, { status });
+  const updated = await updateProperty(id, { status }, user.role);
   return NextResponse.json({
     property: updated,
     banner: status === "sold" || status === "rented" ? status.toUpperCase() : null,

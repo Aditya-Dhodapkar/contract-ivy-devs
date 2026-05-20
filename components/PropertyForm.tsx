@@ -4,9 +4,10 @@
 // now — real upload comes with media work. Reference number is shown read-only
 // when editing; never editable (#22). Price is USD.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PropertyRecord } from "@/lib/repo/properties";
+import type { Role } from "@/lib/roles";
 import { ChipInput } from "@/components/ChipInput";
 
 const TYPES = ["house", "apartment", "land", "commercial"] as const;
@@ -32,10 +33,31 @@ const AMENITY_SUGGESTIONS = [
 const field =
   "w-full border border-hairline/20 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold";
 const label = "block";
-const labelText = "mb-1 block text-eyebrow uppercase text-ash";
+const labelText = "mb-1 block text-eyebrow uppercase text-ink";
 
-export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
+export function PropertyForm({
+  existing,
+  currentUserRole,
+}: {
+  existing?: PropertyRecord;
+  currentUserRole: Role;
+}) {
   const router = useRouter();
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [assignedAgentId, setAssignedAgentId] = useState<string>(
+    existing?.assignedAgentId ?? ""
+  );
+
+  // Agents need not pick — server auto-assigns to self.
+  const showAgentPicker = currentUserRole !== "agent";
+
+  useEffect(() => {
+    if (!showAgentPicker) return;
+    fetch("/api/agents")
+      .then((r) => (r.ok ? r.json() : { agents: [] }))
+      .then((j) => setAgents(j.agents ?? []))
+      .catch(() => setAgents([]));
+  }, [showAgentPicker]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState<string[]>(existing?.photos ?? []);
@@ -158,6 +180,9 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
         .filter((r) => r.place.trim() || r.distance.trim()),
       photos,
     };
+    if (showAgentPicker && assignedAgentId) {
+      payload.assignedAgentId = assignedAgentId;
+    }
     if (!existing) payload.idempotencyKey = idempotencyKey.current;
 
     const res = await fetch(
@@ -216,6 +241,25 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
           ))}
         </select>
       </label>
+
+      {showAgentPicker && (
+        <label className={label}>
+          <span className={labelText}>Assigned agent</span>
+          <select
+            value={assignedAgentId}
+            onChange={(e) => setAssignedAgentId(e.target.value)}
+            className={field}
+          >
+            <option value="">Unassigned</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-ash">
+            Required before this property can be published. Invite agents in Team & roles.
+          </p>
+        </label>
+      )}
 
       <label className={label}>
         <span className={labelText}>Price (KES)</span>

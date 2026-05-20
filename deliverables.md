@@ -15,10 +15,10 @@ Each item is one atomic feature. Numbered sequentially.
 3. Forgot password
 4. Reset password
 5. ✅ Stay logged in (session persistence)
-6. Create user (Owner only)
-7. Edit user
-8. Deactivate user
-9. Assign role to user
+6. ✅ Create user (Owner only)
+7. ✅ Edit user
+8. ✅ Deactivate user (soft — record persists)
+9. ✅ Assign role to user
 10. ✅ Role-based access enforcement (4 roles)
 11. ✅ Owner role — full access incl. delete & user management
 12. ✅ Assistant role — create/edit/publish, no delete
@@ -50,7 +50,7 @@ Each item is one atomic feature. Numbered sequentially.
 32. Manage photo gallery (reorder)
 33. Set primary photo
 34. Upload floor plan
-35. 🟡 Assign agent to property (agents auto-assign self; assign-others UI pending)
+35. ✅ Assign agent to property (real picker sourced from active agents)
 36. Link property to its seller/owner contact
 37. ✅ Set status: Draft
 38. ✅ Set status: Active
@@ -187,7 +187,7 @@ Each item is one atomic feature. Numbered sequentially.
 
 **Total: 130 features.**
 
-**Progress:** 48 ✅ done · 5 🟡 partial · 77 remaining.
+**Progress:** 53 ✅ done · 4 🟡 partial · 73 remaining.
 
 > Phase 1 = items 1–81 + relevant integration setup (120–125).
 > Phase 2 = items 82–119 + 126–130.

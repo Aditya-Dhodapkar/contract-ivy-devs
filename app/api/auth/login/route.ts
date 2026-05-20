@@ -1,13 +1,13 @@
-// Deliverable #1 Login. Verifies email + bcrypt password against the Sanity
-// `user` records, then mints a session cookie.
+// Deliverable #1 Login. Looks up the user via the repo (which in dev combines
+// the seed dev users + any users created in /team, and in production queries
+// Sanity). Bcrypt-checks the password, blocks inactive accounts, then mints a
+// session cookie.
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { sanity } from "@/lib/sanity";
 import { createSession } from "@/lib/auth";
-import type { Role } from "@/lib/roles";
-import { usingDevUsers, findDevUser } from "@/lib/devUsers";
+import { findUserByEmail, recordLogin } from "@/lib/repo/users";
 
 const Body = z.object({ email: z.string().email(), password: z.string().min(1) });
 
@@ -18,25 +18,24 @@ export async function POST(req: Request) {
   }
   const { email, password } = parsed.data;
 
-  // Dev fallback: test all roles before the client's Sanity exists.
-  const user = usingDevUsers
-    ? findDevUser(email)
-    : await sanity.fetch(
-        `*[_type == "user" && email == $email && active == true][0]{
-          "id": _id, name, email, role, passwordHash
-        }`,
-        { email }
-      );
-
-  if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+  const user = await findUserByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+  if (!user.active) {
+    return NextResponse.json(
+      { error: "This account has been deactivated. Contact the owner." },
+      { status: 403 }
+    );
   }
 
   await createSession({
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role as Role,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword,
   });
-  return NextResponse.json({ ok: true });
+  await recordLogin(user.id);
+  return NextResponse.json({ ok: true, mustChangePassword: !!user.mustChangePassword });
 }

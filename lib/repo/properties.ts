@@ -44,7 +44,12 @@ export interface PropertyRecord {
   createdAt: string;
   /** Client-issued UUID per form mount; dedupes double-clicks & retries. */
   idempotencyKey?: string;
+  /** Approval workflow: non-Owner work goes to "pending" before it can publish. */
+  approval: PropertyApproval;
+  changesRequestedNote?: string;
 }
+
+export type PropertyApproval = "pending" | "approved" | "changes_requested";
 
 export interface ListScope {
   role: Role;
@@ -112,14 +117,18 @@ function withCreateLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export async function createProperty(
-  data: Partial<PropertyRecord>
+  data: Partial<PropertyRecord>,
+  creatorRole?: Role
 ): Promise<PropertyRecord> {
   const year = new Date().getFullYear();
+  // Owner-created listings are pre-approved; everything else enters the
+  // approval queue.
+  const initialApproval: PropertyApproval =
+    creatorRole === "owner" ? "approved" : "pending";
+
   if (usingDevUsers) {
     return withCreateLock(async () => {
       const all = await devReadAll();
-      // Idempotency: if we've already stored this client's submission, return
-      // it verbatim. Stops double-clicks, retries, and concurrent posts.
       if (data.idempotencyKey) {
         const prior = all.find((p) => p.idempotencyKey === data.idempotencyKey);
         if (prior) return prior;
@@ -132,6 +141,7 @@ export async function createProperty(
         isPrivate: false,
         createdAt: new Date().toISOString(),
         ...data,
+        approval: initialApproval, // never let the client override this
       };
       await devWriteAll([...all, record]);
       return record;
@@ -155,25 +165,98 @@ export async function createProperty(
     showOnWebsite: false,
     isPrivate: false,
     ...data,
+    approval: initialApproval,
   });
   return { ...(created as any), id: created._id };
 }
 
 // referenceNumber is intentionally never patched — it is immutable (#22).
+// approval is only set via the dedicated approve/request-changes endpoints,
+// never via this generic PATCH — we strip it here to be safe.
 export async function updateProperty(
   id: string,
-  patch: Partial<PropertyRecord>
+  patch: Partial<PropertyRecord>,
+  editorRole?: Role
 ): Promise<PropertyRecord> {
-  const { referenceNumber: _drop, id: _id, ...safe } = patch;
+  const {
+    referenceNumber: _drop,
+    id: _id,
+    approval: _ignoreApproval,
+    changesRequestedNote: _ignoreNote,
+    ...safe
+  } = patch;
+
+  // Non-Owner edits flip the record back to "pending" and clear any prior
+  // changes-requested note (their edit is their response to the request).
+  const nonOwnerEdit = editorRole !== undefined && editorRole !== "owner";
+
   if (usingDevUsers) {
     const all = await devReadAll();
     const i = all.findIndex((p) => p.id === id);
     if (i === -1) throw new Error("not found");
-    all[i] = { ...all[i], ...safe };
+    const next = { ...all[i], ...safe };
+    if (nonOwnerEdit) {
+      next.approval = "pending";
+      next.changesRequestedNote = undefined;
+    }
+    all[i] = next;
+    await devWriteAll(all);
+    return next;
+  }
+  const patcher = sanity.patch(id).set(safe);
+  if (nonOwnerEdit) {
+    patcher.set({ approval: "pending" }).unset(["changesRequestedNote"]);
+  }
+  const updated = await patcher.commit();
+  return { ...(updated as any), id: updated._id };
+}
+
+/** How many properties are currently assigned to this user — used as the
+ *  guard against orphaning when an Owner tries to delete an agent. */
+export async function countPropertiesAssignedTo(userId: string): Promise<number> {
+  if (usingDevUsers) {
+    const all = await devReadAll();
+    return all.filter((p) => p.assignedAgentId === userId).length;
+  }
+  return sanity.fetch(
+    `count(*[_type == "property" && assignedAgent->_id == $id])`,
+    { id: userId }
+  );
+}
+
+export async function countPendingApprovals(): Promise<number> {
+  if (usingDevUsers) {
+    const all = await devReadAll();
+    return all.filter((p) => p.approval === "pending").length;
+  }
+  return sanity.fetch(`count(*[_type == "property" && approval == "pending"])`);
+}
+
+/** Owner action — set approval explicitly. */
+export async function setApproval(
+  id: string,
+  approval: PropertyApproval,
+  note?: string
+): Promise<PropertyRecord> {
+  if (usingDevUsers) {
+    const all = await devReadAll();
+    const i = all.findIndex((p) => p.id === id);
+    if (i === -1) throw new Error("not found");
+    all[i] = {
+      ...all[i],
+      approval,
+      changesRequestedNote: approval === "changes_requested" ? note : undefined,
+    };
     await devWriteAll(all);
     return all[i];
   }
-  const updated = await sanity.patch(id).set(safe).commit();
+  const patcher = sanity.patch(id).set({ approval });
+  if (approval === "changes_requested") {
+    patcher.set({ changesRequestedNote: note ?? "" });
+  } else {
+    patcher.unset(["changesRequestedNote"]);
+  }
+  const updated = await patcher.commit();
   return { ...(updated as any), id: updated._id };
 }
 
