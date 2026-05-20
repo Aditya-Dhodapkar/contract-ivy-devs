@@ -31,9 +31,16 @@ export const property = {
         list: ["house", "apartment", "land", "commercial"],
       },
     },
-    { name: "price", title: "Price (USD)", type: "number" },
+    { name: "price", title: "Price (KES)", type: "number" },
     { name: "bedrooms", title: "Bedrooms", type: "number" },
     { name: "bathrooms", title: "Bathrooms", type: "number" },
+    { name: "yearBuilt", title: "Year built", type: "number" },
+    {
+      name: "yearRestored",
+      title: "Year restored",
+      type: "number",
+      description: "Optional — fill if the property has been restored.",
+    },
     {
       name: "plotSize",
       title: "Plot size (land)",
@@ -60,7 +67,20 @@ export const property = {
       type: "array",
       of: [{ type: "string" }],
     },
-    { name: "nearby", title: "Nearby & location notes", type: "text" },
+    {
+      name: "nearby",
+      title: "Nearby places",
+      type: "array",
+      of: [
+        {
+          type: "object",
+          fields: [
+            { name: "place", title: "Place", type: "string" },
+            { name: "distance", title: "Distance / time", type: "string" },
+          ],
+        },
+      ],
+    },
     {
       name: "photos",
       title: "Photos",
@@ -120,6 +140,13 @@ export const property = {
       title: "Access code",
       type: "string",
       description: "Required to view a private listing. Format pending client.",
+    },
+    {
+      name: "idempotencyKey",
+      title: "Idempotency key",
+      type: "string",
+      hidden: true,
+      description: "Per-form-mount UUID. Dedupes double-submits.",
     },
   ],
   preview: {

@@ -4,7 +4,7 @@
 // now — real upload comes with media work. Reference number is shown read-only
 // when editing; never editable (#22). Price is USD.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PropertyRecord } from "@/lib/repo/properties";
 import { ChipInput } from "@/components/ChipInput";
@@ -42,6 +42,53 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
   const [uploading, setUploading] = useState(0);
   const [highlights, setHighlights] = useState<string[]>(existing?.highlights ?? []);
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
+
+  // Price as a controlled, comma-grouped string. We keep digits-only in state
+  // implicitly by reformatting on every keystroke; the raw number is parsed
+  // back out at submit time. Grouping locale fixed to "en" so commas are
+  // consistent regardless of the user's browser locale.
+  const groupFmt = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
+  const [priceDisplay, setPriceDisplay] = useState<string>(
+    existing?.price != null ? groupFmt.format(existing.price) : ""
+  );
+  function onPriceChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, "");
+    setPriceDisplay(digits ? groupFmt.format(Number(digits)) : "");
+  }
+  // Always normalise to string-typed fields. Inputs need a stable controlled
+  // value from the very first render — undefined → string flips React from
+  // uncontrolled to controlled and triggers a console warning.
+  const normRow = (r: { place?: unknown; distance?: unknown } | undefined | null) => ({
+    place: typeof r?.place === "string" ? r.place : "",
+    distance: typeof r?.distance === "string" ? r.distance : "",
+  });
+  const [nearby, setNearby] = useState<{ place: string; distance: string }[]>(
+    Array.isArray(existing?.nearby) && existing!.nearby!.length
+      ? existing!.nearby!.map(normRow)
+      : [{ place: "", distance: "" }]
+  );
+
+  function updateNearby(i: number, field: "place" | "distance", value: string) {
+    setNearby((curr) =>
+      curr.map((row, idx) => (idx === i ? { ...normRow(row), [field]: value } : row))
+    );
+  }
+  function addNearby() {
+    setNearby((curr) => [...curr, { place: "", distance: "" }]);
+  }
+  function removeNearby(i: number) {
+    setNearby((curr) =>
+      curr.length > 1 ? curr.filter((_, idx) => idx !== i) : [{ place: "", distance: "" }]
+    );
+  }
+  // Refs are mutated synchronously (no re-render gap) — a real lock against
+  // double-clicks. Idempotency key is sent to the server as a second defense.
+  const submitting = useRef(false);
+  const idempotencyKey = useRef<string>(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`
+  );
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -86,25 +133,32 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submitting.current) return; // hard block synchronous double-submits
+    submitting.current = true;
     setSaving(true);
     setError("");
     const f = new FormData(e.currentTarget);
-    const payload = {
+    const payload: Record<string, unknown> = {
       title: f.get("title") || undefined,
       country: f.get("country") || undefined,
       city: f.get("city") || undefined,
       propertyType: f.get("propertyType") || undefined,
-      price: f.get("price") ? Number(f.get("price")) : undefined,
+      price: priceDisplay ? Number(priceDisplay.replace(/\D/g, "")) : undefined,
       bedrooms: f.get("bedrooms") ? Number(f.get("bedrooms")) : undefined,
       bathrooms: f.get("bathrooms") ? Number(f.get("bathrooms")) : undefined,
+      yearBuilt: f.get("yearBuilt") ? Number(f.get("yearBuilt")) : undefined,
+      yearRestored: f.get("yearRestored") ? Number(f.get("yearRestored")) : undefined,
       plotSize: f.get("plotSize") || undefined,
       builtArea: f.get("builtArea") || undefined,
       description: f.get("description") || undefined,
       highlights,
       amenities,
-      nearby: f.get("nearby") || undefined,
+      nearby: nearby
+        .map(normRow)
+        .filter((r) => r.place.trim() || r.distance.trim()),
       photos,
     };
+    if (!existing) payload.idempotencyKey = idempotencyKey.current;
 
     const res = await fetch(
       existing ? `/api/properties/${existing.id}` : "/api/properties",
@@ -113,15 +167,18 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
         body: JSON.stringify(payload),
       }
     );
-    setSaving(false);
     if (res.ok) {
       const { property } = await res.json();
-      router.push(`/properties/${property.id}`);
+      const flag = existing ? "saved" : "created";
+      router.push(`/properties/${property.id}?${flag}=1`);
       router.refresh();
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error || "Could not save.");
+      // Intentionally keep submitting/saving=true while the page navigates.
+      return;
     }
+    const j = await res.json().catch(() => ({}));
+    setError(j.error || "Could not save.");
+    setSaving(false);
+    submitting.current = false;
   }
 
   const v = existing ?? ({} as Partial<PropertyRecord>);
@@ -161,16 +218,18 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
       </label>
 
       <label className={label}>
-        <span className={labelText}>Price (USD)</span>
+        <span className={labelText}>Price (KES)</span>
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ash">
-            US$
+            KSh
           </span>
           <input
             name="price"
-            type="number"
-            min="0"
-            defaultValue={v.price}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            value={priceDisplay}
+            onChange={onPriceChange}
             placeholder="0"
             className={field + " pl-12"}
           />
@@ -185,6 +244,33 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
         <label className={label}>
           <span className={labelText}>Bathrooms</span>
           <input name="bathrooms" type="number" min="0" defaultValue={v.bathrooms} className={field} />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <label className={label}>
+          <span className={labelText}>Year built</span>
+          <input
+            name="yearBuilt"
+            type="number"
+            min="1800"
+            max="2100"
+            defaultValue={v.yearBuilt}
+            placeholder="e.g. 1995"
+            className={field}
+          />
+        </label>
+        <label className={label}>
+          <span className={labelText}>Year restored (optional)</span>
+          <input
+            name="yearRestored"
+            type="number"
+            min="1800"
+            max="2100"
+            defaultValue={v.yearRestored}
+            placeholder="e.g. 2023"
+            className={field}
+          />
         </label>
       </div>
 
@@ -235,16 +321,42 @@ export function PropertyForm({ existing }: { existing?: PropertyRecord }) {
           />
         </div>
 
-        <label className={label}>
-          <span className={labelText}>Nearby & location notes</span>
-          <textarea
-            name="nearby"
-            defaultValue={v.nearby}
-            rows={3}
-            placeholder="e.g. 5 min to airstrip, 20 min to beach club, dhow jetty on the bay."
-            className={field}
-          />
-        </label>
+        <div>
+          <span className={labelText}>Nearby places</span>
+          <ul className="space-y-2">
+            {nearby.map((row, i) => (
+              <li key={i} className="grid grid-cols-[1fr,12rem,auto] items-center gap-2">
+                <input
+                  value={row.place}
+                  onChange={(e) => updateNearby(i, "place", e.target.value)}
+                  placeholder="Place (e.g. Lamu Airport)"
+                  className={field}
+                />
+                <input
+                  value={row.distance}
+                  onChange={(e) => updateNearby(i, "distance", e.target.value)}
+                  placeholder="Distance / time (e.g. 5 min)"
+                  className={field}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeNearby(i)}
+                  title="Remove this row"
+                  className="px-2 py-2 text-sm text-ash hover:text-red-700"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={addNearby}
+            className="mt-2 border border-dashed border-hairline/30 px-3 py-1.5 text-eyebrow uppercase text-ink-mute hover:bg-paper"
+          >
+            + Add nearby place
+          </button>
+        </div>
       </section>
 
       <div>

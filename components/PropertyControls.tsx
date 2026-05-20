@@ -58,14 +58,32 @@ export function PropertyControls({
 
       <div>
         <p className="text-eyebrow uppercase text-ash">Website</p>
-        <div className="mt-2 flex gap-2">
-          <button
-            className={btn}
-            onClick={() => call(`/api/properties/${p.id}/publish`, { show: !p.showOnWebsite })}
-          >
-            {p.showOnWebsite ? "Take off website" : "Publish to website"}
-          </button>
+        <div className="mt-2 flex items-center gap-2">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              p.showOnWebsite ? "bg-green-600" : "bg-ash"
+            }`}
+            aria-hidden
+          />
+          <span className="text-sm">
+            {p.showOnWebsite ? "Live on website" : "Not on website"}
+          </span>
         </div>
+        <button
+          onClick={() => call(`/api/properties/${p.id}/publish`, { show: !p.showOnWebsite })}
+          className={
+            p.showOnWebsite
+              ? "mt-3 w-full border border-hairline/30 px-3 py-2 text-eyebrow uppercase text-ink-mute hover:bg-ivory-deep"
+              : "mt-3 w-full bg-gold-deep px-3 py-3 text-eyebrow uppercase text-paper hover:bg-ink"
+          }
+        >
+          {p.showOnWebsite ? "Take off website" : "Publish to website"}
+        </button>
+        {!p.showOnWebsite && (
+          <p className="mt-1.5 text-xs text-ash">
+            Goes live once every required field is filled.
+          </p>
+        )}
       </div>
 
       <div>

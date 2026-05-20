@@ -22,15 +22,17 @@ export interface PropertyRecord {
   country?: string;
   city?: string;
   propertyType?: PropertyType;
-  price?: number; // stored in USD (currency confirmed with client at handoff)
+  price?: number; // KES (Kenyan Shillings)
   bedrooms?: number;
   bathrooms?: number;
+  yearBuilt?: number;
+  yearRestored?: number;
   plotSize?: string;
   builtArea?: string;
   description?: string;
   highlights?: string[];
   amenities?: string[];
-  nearby?: string;
+  nearby?: { place: string; distance: string }[];
   photos?: string[];
   floorPlan?: string;
   assignedAgentId?: string;
@@ -40,6 +42,8 @@ export interface PropertyRecord {
   isPrivate: boolean;
   accessCode?: string;
   createdAt: string;
+  /** Client-issued UUID per form mount; dedupes double-clicks & retries. */
+  idempotencyKey?: string;
 }
 
 export interface ListScope {
@@ -96,23 +100,49 @@ export async function getProperty(id: string): Promise<PropertyRecord | null> {
   );
 }
 
+// Serialises create-ops in the dev backend so two concurrent POSTs can't both
+// pass the idempotency check before either has written, nor race the
+// reference-number sequence. Production Sanity would use a transaction or a
+// unique constraint instead — noted for the swap.
+let createMutex: Promise<unknown> = Promise.resolve();
+function withCreateLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = createMutex.then(fn, fn);
+  createMutex = next.catch(() => undefined);
+  return next;
+}
+
 export async function createProperty(
   data: Partial<PropertyRecord>
 ): Promise<PropertyRecord> {
   const year = new Date().getFullYear();
   if (usingDevUsers) {
-    const all = await devReadAll();
-    const record: PropertyRecord = {
-      id: `prop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      referenceNumber: nextReference(all.map((p) => p.referenceNumber), year),
-      status: "draft",
-      showOnWebsite: false,
-      isPrivate: false,
-      createdAt: new Date().toISOString(),
-      ...data,
-    };
-    await devWriteAll([...all, record]);
-    return record;
+    return withCreateLock(async () => {
+      const all = await devReadAll();
+      // Idempotency: if we've already stored this client's submission, return
+      // it verbatim. Stops double-clicks, retries, and concurrent posts.
+      if (data.idempotencyKey) {
+        const prior = all.find((p) => p.idempotencyKey === data.idempotencyKey);
+        if (prior) return prior;
+      }
+      const record: PropertyRecord = {
+        id: `prop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        referenceNumber: nextReference(all.map((p) => p.referenceNumber), year),
+        status: "draft",
+        showOnWebsite: false,
+        isPrivate: false,
+        createdAt: new Date().toISOString(),
+        ...data,
+      };
+      await devWriteAll([...all, record]);
+      return record;
+    });
+  }
+  if (data.idempotencyKey) {
+    const prior = await sanity.fetch(
+      `*[_type == "property" && idempotencyKey == $k][0]{ "id": _id, ... }`,
+      { k: data.idempotencyKey }
+    );
+    if (prior) return prior;
   }
   const existing: string[] = await sanity.fetch(
     `*[_type == "property"].referenceNumber`

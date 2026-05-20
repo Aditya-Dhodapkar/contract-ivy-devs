@@ -3,6 +3,7 @@
 // writes server-side.
 
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import { getProperty } from "@/lib/repo/properties";
@@ -10,14 +11,17 @@ import { PropertyForm } from "@/components/PropertyForm";
 import { PropertyControls } from "@/components/PropertyControls";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Header } from "@/components/Header";
-import { formatUsd } from "@/lib/format";
+import { formatKes } from "@/lib/format";
 
 export default async function PropertyDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ saved?: string; created?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const user = await getSession();
   if (!user) redirect("/login");
 
@@ -32,6 +36,24 @@ export default async function PropertyDetail({
     <div className="min-h-screen bg-ivory">
       <Header back={{ href: "/properties", label: "Properties" }} />
       <div className="mx-auto max-w-4xl px-6 py-12">
+      {(sp.saved || sp.created) && (
+        <div className="mb-6 flex items-center justify-between border border-gold/40 bg-gold/10 px-4 py-3">
+          <div className="text-sm">
+            <span className="font-medium text-gold-deep">
+              {sp.created ? "✓ Property created." : "✓ Changes saved."}
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-eyebrow uppercase">
+            <Link href="/properties" className="text-ink-mute hover:text-gold-deep">
+              ← Back to Properties
+            </Link>
+            <Link href={`/properties/${id}`} className="text-ash hover:text-gold-deep">
+              Dismiss
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-serif text-3xl">{p.title || "Untitled"}</h1>
@@ -69,9 +91,11 @@ export default async function PropertyDetail({
             ) : (
               <>
               <dl className="space-y-2 text-sm">
-                <div>Price: {formatUsd(p.price)}</div>
+                <div>Price: {formatKes(p.price)}</div>
                 <div>Bedrooms: {p.bedrooms ?? "—"}</div>
                 <div>Bathrooms: {p.bathrooms ?? "—"}</div>
+                <div>Year built: {p.yearBuilt ?? "—"}</div>
+                {p.yearRestored != null && <div>Year restored: {p.yearRestored}</div>}
                 <div>Plot size (land): {p.plotSize ?? "—"}</div>
                 <div>Built area (house): {p.builtArea ?? "—"}</div>
                 <div>Photos: {p.photos?.length ?? 0}</div>
@@ -103,10 +127,17 @@ export default async function PropertyDetail({
                     </ul>
                   </div>
                 )}
-                {p.nearby && (
+                {p.nearby && p.nearby.length > 0 && (
                   <div>
-                    <p className="text-eyebrow uppercase text-ash">Nearby & location</p>
-                    <p className="mt-1 whitespace-pre-wrap">{p.nearby}</p>
+                    <p className="text-eyebrow uppercase text-ash">Nearby</p>
+                    <ul className="mt-1 divide-y divide-hairline/10 border-y border-hairline/10">
+                      {p.nearby.map((n, i) => (
+                        <li key={i} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                          <span>{n.place}</span>
+                          <span className="text-ash">{n.distance}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

@@ -8,7 +8,7 @@ import { permissionsFor } from "@/lib/roles";
 import { listProperties } from "@/lib/repo/properties";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Header } from "@/components/Header";
-import { formatUsd } from "@/lib/format";
+import { formatKes } from "@/lib/format";
 
 export default async function PropertiesPage({
   searchParams,
@@ -76,7 +76,7 @@ export default async function PropertiesPage({
                 {p.referenceNumber} · {[p.city, p.country].filter(Boolean).join(", ") || "—"} · {p.propertyType || "—"}
               </p>
               {p.price != null && (
-                <p className="mt-0.5 text-sm text-ink-mute">{formatUsd(p.price)}</p>
+                <p className="mt-0.5 text-sm text-ink-mute">{formatKes(p.price)}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
