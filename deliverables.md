@@ -174,7 +174,7 @@ Each item is one atomic feature. Numbered sequentially.
 120. ✅ Next.js app set up (back office)
 121. Hosting set up (Vercel)
 122. Code repository handoff (GitHub)
-123. 🟡 Sanity CMS set up (schema authored; dev data layer in use; client project not yet provisioned)
+123. 🟡 Database set up — **Supabase (Postgres + Storage)** (SQL migration authored at `migrations/001_init.sql`; repo layer rewritten and typechecked; live project not yet provisioned)
 124. Secure document store set up (Cloudflare R2 / AWS S3) with access logging
 125. Anthropic Claude API integration (brochure + AI replies)
 126. Zoho CRM integration (lead management)

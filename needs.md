@@ -26,6 +26,7 @@ He is the messenger, not a doer. We need him to:
 7. Zoho account (CRM + Mail + Campaigns) — created under her, access granted to us
 8. Meta Business account + Business verification — needs her company's legal documents/ID; cannot be done under our identity
 9. M-Pesa Paybill number (hers entirely — display only)
+10. Supabase project (Postgres + Storage) — created under her email; free tier covers this scope. She shares the project URL, anon key, and service-role key with us (NOT her account password). For build we can run under our own dev Supabase if she's not ready; we transfer/migrate to her project at handoff.
 
 ### Content
 10. Property data + photos + floor plans for initial listings
@@ -53,11 +54,11 @@ Everything technical. The manager cannot do any of this, so we own it end to end
 ### Technical setup we handle (ours to do)
 - GitHub repo + code handoff
 - Vercel hosting + deploys
-- Sanity CMS project, schema, tokens
-- Cloudflare R2 / AWS S3 bucket + access logging
+- Supabase project setup (apply SQL migration, create storage bucket, configure env vars) — once she provides the project URL + service-role key
 - Claude API integration (using her key)
 - Zoho CRM / Mail / Campaigns configuration + API wiring (using her granted access)
 - WhatsApp Business Cloud API technical connection (once her Meta verification clears)
+- Sensitive-document storage (Step 3) uses the same Supabase Storage bucket — no separate R2/S3 account needed
 
 ### System build (full scope — see `deliverables.md`, 130 features)
 - The private back-office app (login → property management → documents → reports → logout)
