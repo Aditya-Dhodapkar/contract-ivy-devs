@@ -13,21 +13,41 @@ import { ChipInput } from "@/components/ChipInput";
 const TYPES = ["house", "apartment", "land", "commercial"] as const;
 
 const AMENITY_SUGGESTIONS = [
+  // Outdoor / location
   "Swimming pool",
   "Sea view",
   "Beach access",
   "Garden",
-  "Staff quarters",
+  // Utilities / infrastructure (Kenya-specific)
   "Generator",
+  "Inverter",
   "Borehole",
   "Solar power",
   "Air conditioning",
   "WiFi",
+  // Indoor rooms
+  "Fireplace",
+  "Wine cellar",
+  "Reception room",
+  "Guest house",
+  "Staff quarters",
+  // Access / security / parking
   "Parking",
   "Garage",
   "Security",
   "Gated community",
   "Furnished",
+];
+
+const FACING_OPTIONS: { value: import("@/lib/repo/properties").FacingDirection; label: string }[] = [
+  { value: "N",  label: "North" },
+  { value: "NE", label: "Northeast" },
+  { value: "E",  label: "East" },
+  { value: "SE", label: "Southeast" },
+  { value: "S",  label: "South" },
+  { value: "SW", label: "Southwest" },
+  { value: "W",  label: "West" },
+  { value: "NW", label: "Northwest" },
 ];
 
 const field =
@@ -64,6 +84,14 @@ export function PropertyForm({
   const [uploading, setUploading] = useState(0);
   const [highlights, setHighlights] = useState<string[]>(existing?.highlights ?? []);
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
+  // Brochure toggles default to true (show by default). Owner unticks per
+  // property when the seller asked for the map or plot to be hidden.
+  const [showMapOnBrochure, setShowMapOnBrochure] = useState<boolean>(
+    existing?.showMapOnBrochure !== false
+  );
+  const [showPlotOnBrochure, setShowPlotOnBrochure] = useState<boolean>(
+    existing?.showPlotOnBrochure !== false
+  );
 
   // Price as a controlled, comma-grouped string. We keep digits-only in state
   // implicitly by reformatting on every keystroke; the raw number is parsed
@@ -172,6 +200,11 @@ export function PropertyForm({
       yearRestored: f.get("yearRestored") ? Number(f.get("yearRestored")) : undefined,
       plotSize: f.get("plotSize") || undefined,
       builtArea: f.get("builtArea") || undefined,
+      facingDirection: f.get("facingDirection") || undefined,
+      plotWidthMeters: f.get("plotWidthMeters") ? Number(f.get("plotWidthMeters")) : undefined,
+      plotLengthMeters: f.get("plotLengthMeters") ? Number(f.get("plotLengthMeters")) : undefined,
+      showMapOnBrochure,
+      showPlotOnBrochure,
       description: f.get("description") || undefined,
       highlights,
       amenities,
@@ -326,6 +359,42 @@ export function PropertyForm({
         <label className={label}>
           <span className={labelText}>Built area (house)</span>
           <input name="builtArea" defaultValue={v.builtArea} placeholder="e.g. 3,200 sqft" className={field} />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <label className={label}>
+          <span className={labelText}>Facing direction</span>
+          <select name="facingDirection" defaultValue={v.facingDirection ?? ""} className={field}>
+            <option value="">—</option>
+            {FACING_OPTIONS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className={label}>
+          <span className={labelText}>Plot width (m)</span>
+          <input
+            name="plotWidthMeters"
+            type="number"
+            min="0"
+            step="0.1"
+            defaultValue={v.plotWidthMeters}
+            placeholder="e.g. 41"
+            className={field}
+          />
+        </label>
+        <label className={label}>
+          <span className={labelText}>Plot length (m)</span>
+          <input
+            name="plotLengthMeters"
+            type="number"
+            min="0"
+            step="0.1"
+            defaultValue={v.plotLengthMeters}
+            placeholder="e.g. 81"
+            className={field}
+          />
         </label>
       </div>
 
@@ -497,6 +566,38 @@ export function PropertyForm({
           The primary photo (★) is shown on the website and on the brochure cover. Tap ☆ on any other photo to make it the primary. Use ← → to reorder, ✕ to remove.
         </p>
       </div>
+
+      <section className="space-y-3 border-t border-hairline/15 pt-5">
+        <p className="text-eyebrow uppercase text-ash">Brochure options</p>
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={showMapOnBrochure}
+            onChange={(e) => setShowMapOnBrochure(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-gold-deep"
+          />
+          <span>
+            Include map location on the brochure
+            <span className="ml-1 text-xs text-ash">
+              — untick if the seller asked you to hide the exact location.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={showPlotOnBrochure}
+            onChange={(e) => setShowPlotOnBrochure(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-gold-deep"
+          />
+          <span>
+            Include plot diagram on the brochure
+            <span className="ml-1 text-xs text-ash">
+              — needs width + length above; skip for apartments.
+            </span>
+          </span>
+        </label>
+      </section>
 
       {error && <p className="text-sm text-red-700">{error}</p>}
 

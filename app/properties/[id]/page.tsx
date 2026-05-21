@@ -102,8 +102,12 @@ export default async function PropertyDetail({
                 <div>Bathrooms: {p.bathrooms ?? "—"}</div>
                 <div>Year built: {p.yearBuilt ?? "—"}</div>
                 {p.yearRestored != null && <div>Year restored: {p.yearRestored}</div>}
+                <div>Facing: {p.facingDirection ?? "—"}</div>
                 <div>Plot size (land): {p.plotSize ?? "—"}</div>
                 <div>Built area (house): {p.builtArea ?? "—"}</div>
+                {p.plotWidthMeters != null && p.plotLengthMeters != null && (
+                  <div>Plot dimensions: {p.plotWidthMeters} m × {p.plotLengthMeters} m</div>
+                )}
                 <div>Photos: {p.photos?.length ?? 0}</div>
               </dl>
               <div className="mt-6 space-y-5 text-sm">

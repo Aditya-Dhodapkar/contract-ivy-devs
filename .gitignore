@@ -1,7 +1,7 @@
 node_modules
 .next
-.env*.local
 .devdata
 public/uploads
 *.log
 .DS_Store
+*.env

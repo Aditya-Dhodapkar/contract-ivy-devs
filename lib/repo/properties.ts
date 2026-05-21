@@ -15,6 +15,7 @@ import type { Role } from "@/lib/roles";
 export type PropertyStatus = "draft" | "active" | "sold" | "rented";
 export type PropertyType = "house" | "apartment" | "land" | "commercial";
 export type PropertyApproval = "pending" | "approved" | "changes_requested";
+export type FacingDirection = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 
 export interface PropertyRecord {
   id: string;
@@ -30,6 +31,12 @@ export interface PropertyRecord {
   yearRestored?: number;
   plotSize?: string;
   builtArea?: string;
+  /** Compass facing direction — used on the brochure for houses. */
+  facingDirection?: FacingDirection;
+  /** Plot dimensions in metres. Optional; the brochure draws a plot diagram
+   *  when both are present. */
+  plotWidthMeters?: number;
+  plotLengthMeters?: number;
   description?: string;
   highlights?: string[];
   amenities?: string[];
@@ -46,6 +53,10 @@ export interface PropertyRecord {
   idempotencyKey?: string;
   approval: PropertyApproval;
   changesRequestedNote?: string;
+  /** Brochure-section toggles — default true. Owner unticks per property
+   *  when the seller wants the location or plot withheld. */
+  showMapOnBrochure?: boolean;
+  showPlotOnBrochure?: boolean;
 }
 
 export interface ListScope {
@@ -80,6 +91,9 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     year_restored: rec.yearRestored,
     plot_size: rec.plotSize,
     built_area: rec.builtArea,
+    facing_direction: rec.facingDirection,
+    plot_width_meters: rec.plotWidthMeters,
+    plot_length_meters: rec.plotLengthMeters,
     description: rec.description,
     highlights: rec.highlights,
     amenities: rec.amenities,
@@ -94,6 +108,8 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     access_code: rec.accessCode,
     approval: rec.approval,
     changes_requested_note: rec.changesRequestedNote,
+    show_map_on_brochure: rec.showMapOnBrochure,
+    show_plot_on_brochure: rec.showPlotOnBrochure,
     idempotency_key: rec.idempotencyKey,
     created_at: rec.createdAt,
   };
@@ -115,6 +131,9 @@ function fromRow(r: Row): PropertyRecord {
     yearRestored: (r.year_restored as number) ?? undefined,
     plotSize: (r.plot_size as string) ?? undefined,
     builtArea: (r.built_area as string) ?? undefined,
+    facingDirection: (r.facing_direction as FacingDirection) ?? undefined,
+    plotWidthMeters: r.plot_width_meters == null ? undefined : Number(r.plot_width_meters),
+    plotLengthMeters: r.plot_length_meters == null ? undefined : Number(r.plot_length_meters),
     description: (r.description as string) ?? undefined,
     highlights: (r.highlights as string[]) ?? undefined,
     amenities: (r.amenities as string[]) ?? undefined,
@@ -131,6 +150,8 @@ function fromRow(r: Row): PropertyRecord {
     idempotencyKey: (r.idempotency_key as string) ?? undefined,
     approval: r.approval as PropertyApproval,
     changesRequestedNote: (r.changes_requested_note as string) ?? undefined,
+    showMapOnBrochure: r.show_map_on_brochure == null ? undefined : !!r.show_map_on_brochure,
+    showPlotOnBrochure: r.show_plot_on_brochure == null ? undefined : !!r.show_plot_on_brochure,
   };
 }
 

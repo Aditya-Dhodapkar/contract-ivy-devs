@@ -6,9 +6,10 @@
 // native browser dialogs.
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { PropertyRecord } from "@/lib/repo/properties";
-import type { Role } from "@/lib/roles";
+import { can, type Role } from "@/lib/roles";
 import { ApprovalBadge } from "@/components/ApprovalBadge";
 import { ModalShell, modalBtnCancel, modalBtnDanger, modalBtnPrimary } from "@/components/ModalShell";
 
@@ -125,6 +126,21 @@ export function PropertyControls({
           <p className="mt-2 text-xs text-ink-mute">Waiting for the Owner to review.</p>
         ) : null}
       </div>
+
+      {can(role, "generateBrochure") && (
+        <div>
+          <p className="text-eyebrow uppercase text-ash">Brochure</p>
+          <Link
+            href={`/properties/${p.id}/brochure`}
+            className="mt-3 inline-block w-full bg-gold-deep px-3 py-2.5 text-center text-eyebrow uppercase text-paper hover:bg-ink"
+          >
+            Create brochure
+          </Link>
+          <p className="mt-1.5 text-xs text-ash">
+            Claude drafts the copy; you review and download the PDF.
+          </p>
+        </div>
+      )}
 
       <div>
         <p className="text-eyebrow uppercase text-ash">Status</p>

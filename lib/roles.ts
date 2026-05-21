@@ -28,6 +28,11 @@ export interface Permissions {
   viewInquiries: Scope;
   viewReports: boolean;
   manageUsers: boolean;
+  /** Trigger the AI-assisted brochure generator + download a PDF.
+   *  Boolean (not scoped) because the action itself never mutates a record;
+   *  it only reads data and renders a one-off file. Owner/Assistant/GM are
+   *  authorised per client decision; Agents are not. */
+  generateBrochure: boolean;
 }
 
 const MATRIX: Record<Role, Permissions> = {
@@ -41,6 +46,7 @@ const MATRIX: Record<Role, Permissions> = {
     viewInquiries: "all",
     viewReports: true,
     manageUsers: true,
+    generateBrochure: true,
   },
   assistant: {
     viewProperties: "all",
@@ -52,8 +58,10 @@ const MATRIX: Record<Role, Permissions> = {
     viewInquiries: "all",
     viewReports: true,
     manageUsers: false,
+    generateBrochure: true,
   },
-  // Read-only across everything. Oversees operations, touches nothing.
+  // Read-only across data. Brochure download is the one allowed write-ish
+  // action (it creates an output but mutates no records).
   general_manager: {
     viewProperties: "all",
     createProperty: false,
@@ -64,8 +72,10 @@ const MATRIX: Record<Role, Permissions> = {
     viewInquiries: "all",
     viewReports: true,
     manageUsers: false,
+    generateBrochure: true,
   },
-  // Only their own assigned properties. Cannot see other agents' work.
+  // Only their own assigned properties. Brochure generation deliberately
+  // excluded — Owner/Assistant/GM produce client-facing output.
   agent: {
     viewProperties: "own",
     createProperty: true,
@@ -76,6 +86,7 @@ const MATRIX: Record<Role, Permissions> = {
     viewInquiries: "own",
     viewReports: false,
     manageUsers: false,
+    generateBrochure: false,
   },
 };
 
