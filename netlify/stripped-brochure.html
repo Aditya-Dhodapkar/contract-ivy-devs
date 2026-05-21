@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{title}} — Property Brochure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+
+<style>
+  :root {
+    --paper: #f3efe6;
+    --paper-2: #ebe5d7;
+    --ink: #1c1f1a;
+    --ink-soft: #4a4d44;
+    --ink-mute: #8a8a7e;
+    --rule: #c9c2b1;
+    --accent: #2d3b2c;       /* deep forest */
+    --accent-2: #6b5a3e;     /* warm bronze */
+    --berry: #8a3a3a;        /* heliconia red, used sparingly */
+    --page-w: 794px;         /* A4 @ 96dpi */
+    --page-h: 1123px;
+    --margin: 56px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #d6d1c4;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+    padding: 32px 0 80px;
+  }
+
+  /* Page shell */
+  .deck { display: flex; flex-direction: column; align-items: center; gap: 28px; }
+  .page {
+    width: var(--page-w);
+    height: var(--page-h);
+    background: var(--paper);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 30px 60px -30px rgba(0,0,0,.25);
+    color: var(--ink);
+  }
+  .page-inner {
+    position: absolute;
+    inset: var(--margin);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Running header / footer */
+  .runhead, .runfoot {
+    position: absolute;
+    left: var(--margin); right: var(--margin);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .runhead { top: 28px; }
+  .runfoot { bottom: 28px; }
+  .runhead .dot, .runfoot .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); display: inline-block; margin: 0 8px; vertical-align: middle; }
+
+  /* Type */
+  .display {
+    font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    text-wrap: pretty;
+  }
+  .small {
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .num {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    line-height: 1;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+  /* === COVER === */
+  .cover { background: var(--paper); }
+  .cover-hero {
+    position: absolute; inset: 0;
+    background-image: url('assets/hero.jpg');
+    background-size: cover; background-position: center;
+  }
+  .cover-vignette {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgba(15,20,12,.55) 0%, rgba(15,20,12,.15) 28%, rgba(15,20,12,.08) 55%, rgba(15,20,12,.78) 100%);
+  }
+  .cover-frame {
+    position: absolute; inset: 28px;
+    border: 1px solid rgba(243,239,230,.45);
+    pointer-events: none;
+  }
+  .cover-content {
+    position: absolute; inset: 0;
+    padding: 56px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    color: #f3efe6;
+  }
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .cover-mark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .cover-mark span { display: block; font-style: normal; font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .28em; text-transform: uppercase; margin-top: 8px; opacity: .8; }
+  .cover-meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    line-height: 1.9;
+    opacity: .85;
+  }
+  .cover-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 96px;
+    line-height: 0.92;
+    letter-spacing: -0.015em;
+  }
+  .cover-title em { font-style: italic; font-weight: 300; color: #e7dcc4; }
+  .cover-sub {
+    margin-top: 18px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    letter-spacing: .02em;
+    max-width: 460px;
+    color: rgba(243,239,230,.85);
+  }
+  .cover-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+  .cover-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    opacity: .85;
+  }
+  .cover-tag .bar { display: inline-block; width: 28px; height: 1px; background: currentColor; vertical-align: middle; margin-right: 12px; opacity: .7; }
+
+  /* === GLANCE === */
+  .glance-hd {
+    display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px;
+    padding-bottom: 22px; border-bottom: 1px solid var(--rule);
+  }
+  .glance-hd h1 {
+    margin: 12px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .glance-hd h1 em { font-style: italic; color: var(--accent); }
+  .glance-hd .pageno { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .2em; color: var(--ink-mute); }
+
+  .price-row {
+    margin-top: 28px;
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px;
+    align-items: start;
+  }
+  .price-block .label { margin-bottom: 10px; }
+  .price-figure {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 64px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .price-figure .ccy {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: .14em;
+    color: var(--accent);
+    display: inline-block;
+    transform: translateY(-22px);
+    margin-right: 6px;
+  }
+  .price-meta { font-size: 12px; color: var(--ink-mute); margin-top: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+  .blurb {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+
+  .facts {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+  }
+  .fact {
+    padding: 20px 14px 18px 0;
+    border-right: 1px solid var(--rule);
+  }
+  .fact:last-child { border-right: 0; padding-right: 0; }
+  .fact .label { margin-bottom: 14px; }
+  .fact .val {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .fact .val small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    display: block;
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+
+  .glance-body {
+    margin-top: 38px;
+    display: grid; grid-template-columns: 2fr 1.1fr; gap: 40px;
+  }
+  .glance-body h2 {
+    margin: 0 0 14px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+  .glance-body p + p { margin-top: 12px; }
+  .keylist { list-style: none; margin: 0; padding: 0; }
+  .keylist li {
+    display: grid; grid-template-columns: 80px 1fr; gap: 14px;
+    padding: 10px 0; border-bottom: 1px dashed var(--rule);
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .keylist li:first-child { border-top: 1px dashed var(--rule); }
+  .keylist .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    padding-top: 2px;
+  }
+
+  /* === LOCATION === */
+  .loc { display: grid; grid-template-rows: auto auto 1fr auto; gap: 24px; height: 100%; }
+  .loc h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .loc h1 em { font-style: italic; color: var(--accent); }
+  .loc-intro { max-width: 460px; }
+  .loc-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 28px; }
+  .map-card {
+    background: var(--paper-2);
+    padding: 22px;
+    position: relative;
+    aspect-ratio: 1 / 1.05;
+  }
+  .map-card .label { position: absolute; top: 18px; left: 22px; }
+  .map-card .scale {
+    position: absolute; bottom: 18px; right: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px; letter-spacing: .14em; color: var(--ink-mute); text-transform: uppercase;
+  }
+  .map-svg { width: 100%; height: 100%; display: block; }
+
+  .nearby {
+    list-style: none; margin: 0; padding: 0;
+  }
+  .nearby li {
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 14px;
+    align-items: baseline;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .nearby li:first-child { border-top: 1px solid var(--rule); }
+  .nearby .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--accent); letter-spacing: .12em;
+  }
+  .nearby .name { font-size: 13px; color: var(--ink); }
+  .nearby .name span { display: block; color: var(--ink-mute); font-size: 11px; margin-top: 2px; }
+  .nearby .dist {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .nearby .dist small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    margin-left: 4px;
+  }
+
+  /* === SITE PLAN === */
+  .site h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 52px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .site h1 em { font-style: italic; color: var(--accent); }
+  .site-grid {
+    margin-top: 28px;
+    display: grid;
+    /* minmax(0,…) overrides grid items' default min-width:auto so the SVG
+       can't blow out the left column and push specs off-page. */
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 32px;
+  }
+  .siteplan {
+    background: var(--paper-2);
+    padding: 22px;
+    aspect-ratio: 1 / 1;
+    position: relative;
+  }
+  .siteplan .label { position: absolute; top: 18px; left: 22px; }
+  .siteplan .compass {
+    position: absolute; top: 18px; right: 22px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .siteplan svg { width: 100%; height: 100%; display: block; }
+
+  .specs { display: flex; flex-direction: column; gap: 0; }
+  .specs h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 24px;
+    margin: 0 0 14px;
+  }
+  .spectable { width: 100%; border-collapse: collapse; }
+  .spectable td {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 12px;
+    vertical-align: top;
+  }
+  .spectable tr:first-child td { border-top: 1px solid var(--rule); }
+  .spectable .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    width: 38%;
+    padding-top: 13px;
+  }
+  .spectable .v { color: var(--ink); }
+  .spectable .v em { font-style: italic; color: var(--ink-mute); display: block; font-size: 11px; margin-top: 2px; }
+
+  /* === GALLERY === */
+  .gallery h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .gallery h1 em { font-style: italic; color: var(--accent); }
+  .gallery-intro { max-width: 460px; margin-top: 10px; }
+  .gallery-grid {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: 130px;
+    gap: 10px;
+  }
+  .ph {
+    position: relative;
+    overflow: hidden;
+  }
+  .ph::after {
+    content: attr(data-cap);
+    position: absolute;
+    left: 12px; bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(243,239,230,.92);
+    background: rgba(20,24,16,.45);
+    padding: 4px 8px;
+    backdrop-filter: blur(2px);
+  }
+  .ph.real {
+    background-image: url('assets/hero.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+  .ph.placeholder {
+    background:
+      repeating-linear-gradient(135deg, rgba(45,59,44,.10) 0 8px, rgba(45,59,44,.04) 8px 16px),
+      var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-mute);
+  }
+  .ph.placeholder span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  .ph.placeholder::after { color: var(--ink-mute); background: transparent; backdrop-filter: none; }
+
+  /* === TERMS / CONTACT === */
+  /* 4 rows: heading · terms (1fr fills middle) · contact card · disclaim.
+     padding-bottom on the grid pushes the whole stack up so the disclaim
+     row sits well above the runfoot with breathing room. */
+  .closing {
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+    gap: 20px;
+    height: 100%;
+    padding-bottom: 110px;
+  }
+  .closing h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .closing h1 em { font-style: italic; color: var(--accent); }
+
+  .terms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 8px; }
+  .terms-grid h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    margin: 0 0 12px;
+  }
+  .terms-grid p { font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
+  .terms-grid .keylist li { grid-template-columns: 100px 1fr; }
+
+  .contact-card {
+    margin-top: 8px;
+    background: var(--accent);
+    color: #f3efe6;
+    padding: 28px 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    position: relative;
+  }
+  .contact-card .eyebrow { color: rgba(243,239,230,.65); }
+  .contact-card h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    margin: 10px 0 0;
+    letter-spacing: -0.01em;
+  }
+  .contact-card h3 em { font-style: italic; color: #e7dcc4; }
+  .contact-card .info {
+    font-size: 12px;
+    line-height: 1.85;
+    color: rgba(243,239,230,.92);
+  }
+  .contact-card .info b { font-weight: 500; color: #fff; }
+  .contact-card .info .label2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: rgba(243,239,230,.55);
+    display: block;
+    margin-top: 10px;
+  }
+  .contact-card .info .label2:first-child { margin-top: 0; }
+
+  .disclaim {
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    letter-spacing: .08em;
+    line-height: 1.5;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+  }
+
+  /* Print */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .deck { gap: 0; }
+    .page { box-shadow: none; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }
+  @page { size: A4; margin: 0; }
+
+  /* Edit mode pill */
+  .edit-hint {
+    position: fixed; top: 14px; right: 14px;
+    background: var(--accent); color: #f3efe6;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-radius: 999px;
+    z-index: 100;
+    opacity: .85;
+  }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- ============ PAGE 1 — COVER ============ -->
+  <section class="page cover">
+    <div class="cover-hero"></div>
+    <div class="cover-vignette"></div>
+    <div class="cover-frame"></div>
+    <div class="cover-content">
+      <div class="cover-top">
+        <div class="cover-mark" style="display:flex; align-items:center; gap:14px;">
+          <img src="assets/sansi-logo.jpg" alt="Sansi Africa" style="width:54px; height:54px; object-fit:contain; mix-blend-mode:screen; filter:brightness(1.1);" />
+          <div>
+            Sansi&nbsp;<em>·</em>&nbsp;Africa
+            <span>Private sale brochure</span>
+          </div>
+        </div>
+        <div class="cover-meta">
+          File no. {{referenceNumber}}<br/>
+          {{coverDate}}<br/>
+          {{location}}
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="color:#e7dcc4;">{{coverEyebrow}}</div>
+        <h1 class="cover-title" style="margin-top:14px;">{{coverTitle}}</h1>
+        <p class="cover-sub">Two adjoining freehold plots wrapped in mature tropical foliage, set quietly off {{title}} beside the One Off Gallery — in one of Nairobi's most established diplomatic addresses.</p>
+      </div>
+      <div class="cover-bottom">
+        <div class="cover-tag"><span class="bar"></span>For private viewing &nbsp;·&nbsp; By appointment only</div>
+        <div class="cover-tag mono">01&nbsp;/&nbsp;06</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE 2 — AT A GLANCE ============ -->
+  <section class="page">
+    <div class="runhead">
+      <span>{{title}}<span class="dot"></span>Property at a glance</span>
+      <span>{{referenceNumber}}</span>
+    </div>
+    <div class="page-inner">
+      <div class="glance-hd">
+        <div>
+          <div class="eyebrow">§ I — At a Glance</div>
+          <h1>{{glanceHeadline}}</h1>
+        </div>
+        <div class="pageno">P. 02 / 06</div>
+      </div>
+
+      <div class="price-row">
+        <div class="price-block">
+          <div class="label">Asking</div>
+          <div class="price-figure"><span class="ccy">KES</span>{{price}}</div>
+          <div class="price-meta">{{coverTagline}}</div>
+        </div>
+        <div class="blurb">
+          A rare, ready-assembled acre on the quiet side of Rosslyn — already softened by decades of garden, and offered as one parcel to a single buyer.
+        </div>
+      </div>
+
+      <div class="facts">
+        <div class="fact">
+          <div class="label">Total area</div>
+          <div class="val">1.009<small>Acres · ≈ 4 084 m²</small></div>
+        </div>
+        <div class="fact">
+          <div class="label">Configuration</div>
+          <div class="val">2 plots<small>0.510 ac &nbsp;+&nbsp; 0.499 ac</small></div>
+        </div>
+        <div class="fact">
+          <div class="label">Frontage</div>
+          <div class="val">48.04<small>Metres total to road</small></div>
+        </div>
+        <div class="fact">
+          <div class="label">Tenure</div>
+          <div class="val">Freehold<small>Absolute · titled</small></div>
+        </div>
+      </div>
+
+      <div class="glance-body">
+        <div>
+          <h2>{{glanceSubhead}}</h2>
+          <p class="body">{{title}} is a one-acre garden parcel made of two adjoining freehold plots, each measuring approximately twenty-one by eighty metres and laid side by side to form a clean, rectangular acre. The land sits off Rosslyn Close in northern Nairobi, screened from the road by mature trees and softened underfoot by years of careful, low-key planting — heliconia, bamboo, traveller's palm, indigenous canopy.</p>
+          <p class="body">It is offered as a single assemblage. The two titles can be developed jointly as one estate residence with generous setbacks, or kept as a pair — one to live on, one to hold. Either way, the work of waiting for a Nairobi garden to grow has already been done.</p>
+        </div>
+        <div>
+          <h2>{{keyFactsLabel}}</h2>
+          <ul class="keylist">
+            <li><span class="k">Location</span><span>{{title}}, at the One Off Gallery · Nairobi</span></li>
+            <li><span class="k">Tenure</span><span>Freehold · two adjacent titles</span></li>
+            <li><span class="k">Size</span><span>1.009 acres total &nbsp;(0.510 + 0.499)</span></li>
+            <li><span class="k">Shape</span><span>Rectangular · ~ 42 m frontage × 80 m depth</span></li>
+            <li><span class="k">Use</span><span>Residential · low density</span></li>
+            <li><span class="k">Status</span><span>Vacant · garden state · fenced</span></li>
+            <li><span class="k">Sale</span><span>Both plots together · single transaction</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="runfoot"><span>SANSI AFRICAPRIVATE &amp; CONFIDENTIAL</span><span>02 / 06</span></div>
+  </section>
+
+  <!-- ============ PAGE 3 — LOCATION ============ -->
+  <section class="page">
+    <div class="runhead"><span>{{title}}<span class="dot"></span>Location &amp; neighbourhood</span><span>{{referenceNumber}}</span></div>
+    <div class="page-inner loc">
+      <div>
+        <div class="eyebrow">§ II — The Address</div>
+        <h1>{{locationHeadline}}</h1>
+        <p class="body loc-intro" style="margin-top:14px;">Rosslyn sits on Nairobi's northern ridge — a long-established diplomatic and residential pocket bordering Karura Forest, ten minutes from the UN complex at Gigiri and a short drive from the village schools, embassies and cafés that anchor daily life in this part of the city. The parcel sits at the One Off Gallery, off {{title}}.</p>
+      </div>
+
+      <div class="loc-grid">
+        <div class="map-card">
+          <div class="label">Fig. 01 — Locality map</div>
+          <svg class="map-svg" viewBox="0 0 320 340" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <!--
+              Site at One Off Gallery, 28 {{title}} Estate Rd: -1.2163, 36.7928
+              Map roughly 1.6 km across at site latitude (≈ 0.0145°lng / 0.0145°lat).
+              Approx geo positions projected (north up, ≈ 1500 m field):
+                Site            -1.2163, 36.7928   →  (160, 170)  CENTRE
+                Limuru Road     curves N–S east of site (passes ~ x=240)
+                Two Rivers Mall -1.2055, 36.8000   →  (220,  64)  N/NE
+                UN Gigiri       -1.2351, 36.8153   →  (290, 296)  SE (off-edge clipped)
+                Village Market  -1.2293, 36.8093   →  (262, 254)  SE
+                Karura Forest   east of Limuru Rd  →  shaded mass right side
+                Runda           -1.2110, 36.7780   →  ( 60, 122)  W/NW
+                Rosslyn Academy -1.2233, 36.7920   →  (158, 240)  S
+            -->
+            <defs>
+              <pattern id="g" width="24" height="24" patternUnits="userSpaceOnUse">
+                <path d="M24 0H0V24" fill="none" stroke="#c9c2b1" stroke-width="0.4" opacity="0.5"/>
+              </pattern>
+              <pattern id="forest" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+                <path d="M0 3H6" stroke="#2d3b2c" stroke-width="0.6" opacity="0.35"/>
+              </pattern>
+            </defs>
+            <rect width="320" height="340" fill="url(#g)"/>
+            <!-- Karura Forest mass east of Limuru Rd -->
+            <path d="M250 0 Q 280 100 290 200 Q 300 280 310 340 L 320 340 L 320 0 Z" fill="url(#forest)"/>
+            <text x="270" y="190" font-family="Cormorant Garamond" font-style="italic" font-size="12" fill="#2d3b2c" opacity="0.9" transform="rotate(90 270 190)">Karura Forest</text>
+            <!-- Limuru Road, runs roughly N–S east of the site -->
+            <path d="M230 0 Q 240 100 245 180 Q 248 260 252 340" stroke="#8a8a7e" stroke-width="2.6" fill="none"/>
+            <text x="232" y="40" font-family="JetBrains Mono" font-size="8" fill="#4a4d44" letter-spacing="2" transform="rotate(86 232 40)">LIMURU ROAD</text>
+            <!-- {{title}} Estate Road — branches west off Limuru Rd -->
+            <path d="M242 160 Q 200 162 160 170" stroke="#2d3b2c" stroke-width="1.4" fill="none"/>
+            <text x="170" y="158" font-family="JetBrains Mono" font-size="8" fill="#2d3b2c" letter-spacing="2">ROSSLYN LONE TREE</text>
+            <!-- Site marker at One Off Gallery -->
+            <g transform="translate(160 170)">
+              <circle r="22" fill="none" stroke="#2d3b2c" stroke-width="0.6" opacity=".55"/>
+              <circle r="14" fill="none" stroke="#2d3b2c" stroke-width="0.6" opacity=".75"/>
+              <rect x="-5" y="-9" width="10" height="18" fill="#8a3a3a" stroke="#2d3b2c" stroke-width="0.8"/>
+              <line x1="0" y1="-22" x2="0" y2="-30" stroke="#2d3b2c" stroke-width="0.8"/>
+              <text x="6" y="-28" font-family="JetBrains Mono" font-size="8" fill="#2d3b2c" letter-spacing="2">SITE</text>
+            </g>
+            <!-- Landmarks -->
+            <g font-family="Cormorant Garamond" font-size="11" fill="#4a4d44">
+              <circle cx="220" cy="64" r="2.4" fill="#2d3b2c"/>
+              <text x="226" y="68" font-style="italic">Two Rivers</text>
+              <circle cx="262" cy="254" r="2.2" fill="#2d3b2c"/>
+              <text x="208" y="266" font-style="italic">Village Market</text>
+              <circle cx="290" cy="296" r="2.2" fill="#2d3b2c"/>
+              <text x="240" y="306" font-style="italic">UN Gigiri</text>
+              <circle cx="60" cy="122" r="2.2" fill="#2d3b2c"/>
+              <text x="32" y="116" font-style="italic">Runda</text>
+              <circle cx="158" cy="240" r="2" fill="#2d3b2c" opacity="0.7"/>
+              <text x="80" y="244" font-style="italic" font-size="10" opacity="0.85">Rosslyn Academy</text>
+            </g>
+            <!-- N indicator -->
+            <g transform="translate(290 30)">
+              <line x1="0" y1="-12" x2="0" y2="12" stroke="#2d3b2c" stroke-width="1"/>
+              <polygon points="0,-14 -3,-7 3,-7" fill="#2d3b2c"/>
+              <text x="-3" y="-18" font-family="JetBrains Mono" font-size="9" fill="#2d3b2c">N</text>
+            </g>
+            <!-- Coords caption -->
+            <text x="14" y="332" font-family="JetBrains Mono" font-size="7.5" fill="#8a8a7e" letter-spacing="1.5">−1.2163°, 36.7928°  ·  28 ROSSLYN LONE TREE ESTATE RD</text>
+          </svg>
+          <div class="scale">≈ 1.5 km across</div>
+        </div>
+
+        <div>
+          <div class="label" style="margin-bottom:14px;">Within reach</div>
+          <ul class="nearby">
+            <li><span class="n">01</span><span class="name">United Nations, Gigiri<span>Diplomatic complex</span></span><span class="dist">3.2<small>km</small></span></li>
+            <li><span class="n">02</span><span class="name">Village Market<span>Shopping &amp; dining</span></span><span class="dist">2.8<small>km</small></span></li>
+            <li><span class="n">03</span><span class="name">Karura Forest gate<span>1 000 ha urban forest</span></span><span class="dist">2.0<small>km</small></span></li>
+            <li><span class="n">04</span><span class="name">Two Rivers Mall<span>Retail &amp; offices</span></span><span class="dist">3.6<small>km</small></span></li>
+            <li><span class="n">05</span><span class="name">Rosslyn Academy<span>International school</span></span><span class="dist">1.4<small>km</small></span></li>
+            <li><span class="n">06</span><span class="name">JKIA · airport<span>Via Eastern bypass</span></span><span class="dist">28<small>km</small></span></li>
+          </ul>
+          <p class="small" style="margin-top:18px;">Distances are approximate, measured by road from the site entrance off {{title}}.</p>
+        </div>
+      </div>
+
+      <div>
+        <p class="body" style="max-width:640px; column-count:2; column-gap:32px;">
+        The neighbourhood is one of Nairobi's quietest at this scale — large garden plots, embassies and ambassadorial residences, with through-traffic kept to Limuru Road and UN Avenue. The eucalyptus and cape chestnut canopy that defines Rosslyn carries straight onto the parcel; the air, even mid-afternoon, is noticeably cooler than the city below.
+        </p>
+      </div>
+    </div>
+    <div class="runfoot"><span>SANSI AFRICAPRIVATE &amp; CONFIDENTIAL</span><span>03 / 06</span></div>
+  </section>
+
+  <!-- ============ PAGE 4 — SITE PLAN & SPECS ============ -->
+  <section class="page">
+    <div class="runhead"><span>{{title}}<span class="dot"></span>Site plan &amp; particulars</span><span>{{referenceNumber}}</span></div>
+    <div class="page-inner site">
+      <div>
+        <div class="eyebrow">§ III — The Land</div>
+        <h1>{{landHeadline}}</h1>
+      </div>
+
+      <div class="site-grid">
+        <div class="siteplan">
+          <div class="label">Fig. 02 — Indicative site plan</div>
+          <div class="compass"><span>N</span>
+            <svg width="14" height="14" viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13" stroke="#4a4d44"/><polygon points="7,0 5,4 9,4" fill="#4a4d44"/></svg>
+          </div>
+          <svg viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <pattern id="grid2" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M20 0H0V20" fill="none" stroke="#c9c2b1" stroke-width="0.3"/>
+              </pattern>
+              <pattern id="trees" width="14" height="14" patternUnits="userSpaceOnUse">
+                <circle cx="7" cy="7" r="3.4" fill="#2d3b2c" opacity="0.18"/>
+              </pattern>
+            </defs>
+            <rect width="320" height="360" fill="url(#grid2)"/>
+            <!-- Road -->
+            <rect x="0" y="40" width="320" height="22" fill="#ebe5d7" stroke="#c9c2b1" stroke-width="0.6"/>
+            <text x="14" y="55" font-family="JetBrains Mono" font-size="9" fill="#4a4d44" letter-spacing="2">ROSSLYN LONE TREE</text>
+            <!-- Driveway in -->
+            <path d="M150 62 L 150 90" stroke="#8a8a7e" stroke-width="6" stroke-dasharray="2 3"/>
+            <!-- Plot A: 21.86m wide, 94.67m left, 84.48m right. Plot B: 26.18m wide, 84.43m left, 76.24m right -->
+            <!-- Scale ~ 2.4 px/m. Plot A x: 70..122.5; Plot B x: 122.5..185.3 -->
+            <polygon points="70,90 122.5,90 122.5,292.7 70,317.2" fill="#f6f1e3" stroke="#2d3b2c" stroke-width="1.6"/>
+            <polygon points="70,90 122.5,90 122.5,292.7 70,317.2" fill="url(#trees)"/>
+            <polygon points="122.5,90 185.3,90 185.3,272.0 122.5,292.7" fill="#f6f1e3" stroke="#2d3b2c" stroke-width="1.6"/>
+            <polygon points="122.5,90 185.3,90 185.3,272.0 122.5,292.7" fill="url(#trees)"/>
+            <line x1="122.5" y1="90" x2="122.5" y2="292.7" stroke="#2d3b2c" stroke-width="0.8" stroke-dasharray="3 3"/>
+            <!-- Plot labels -->
+            <text x="96" y="200" text-anchor="middle" font-family="Cormorant Garamond" font-style="italic" font-size="18" fill="#1c1f1a">Plot A</text>
+            <text x="96" y="216" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#4a4d44" letter-spacing="2">0.510 AC</text>
+            <text x="154" y="190" text-anchor="middle" font-family="Cormorant Garamond" font-style="italic" font-size="18" fill="#1c1f1a">Plot B</text>
+            <text x="154" y="206" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#4a4d44" letter-spacing="2">0.499 AC</text>
+            <!-- Dimensions -->
+            <g font-family="JetBrains Mono" font-size="8" fill="#4a4d44" letter-spacing="1.5">
+              <line x1="70" y1="78" x2="185.3" y2="78" stroke="#4a4d44" stroke-width="0.5"/>
+              <line x1="70" y1="74" x2="70" y2="82" stroke="#4a4d44" stroke-width="0.5"/>
+              <line x1="122.5" y1="74" x2="122.5" y2="82" stroke="#4a4d44" stroke-width="0.5"/>
+              <line x1="185.3" y1="74" x2="185.3" y2="82" stroke="#4a4d44" stroke-width="0.5"/>
+              <text x="96" y="72" text-anchor="middle">21.86 M</text>
+              <text x="154" y="72" text-anchor="middle">26.18 M</text>
+              <text x="56" y="205" text-anchor="middle" transform="rotate(-90 56 205)">94.67 M (L)</text>
+              <text x="200" y="180" text-anchor="middle" transform="rotate(90 200 180)">76.24 M (R)</text>
+              <text x="128" y="195" text-anchor="start" font-size="7" fill="#8a8a7e">84.43 M</text>
+              <text x="117" y="195" text-anchor="end" font-size="7" fill="#8a8a7e">84.48 M</text>
+            </g>
+            <!-- Marker for hero photo viewpoint -->
+            <g transform="translate(120 290)">
+              <circle r="6" fill="none" stroke="#8a3a3a" stroke-width="1"/>
+              <circle r="2" fill="#8a3a3a"/>
+              <text x="10" y="3" font-family="JetBrains Mono" font-size="8" fill="#8a3a3a" letter-spacing="2">PHOTO 01</text>
+            </g>
+            <!-- Compass scale -->
+            <g transform="translate(20 340)" font-family="JetBrains Mono" font-size="8" fill="#4a4d44" letter-spacing="2">
+              <line x1="0" y1="0" x2="40" y2="0" stroke="#4a4d44" stroke-width="0.8"/>
+              <line x1="0" y1="-3" x2="0" y2="3" stroke="#4a4d44" stroke-width="0.8"/>
+              <line x1="40" y1="-3" x2="40" y2="3" stroke="#4a4d44" stroke-width="0.8"/>
+              <text x="0" y="14">0</text>
+              <text x="36" y="14">20 M</text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="specs">
+          <div class="eyebrow" style="margin-bottom:8px;">Particulars</div>
+          <h2>Land &amp; tenure.</h2>
+          <table class="spectable">
+            <tr><td class="k">Address</td><td class="v">{{title}}<em>At the One Off Gallery, Nairobi</em></td></tr>
+            <tr><td class="k">Tenure</td><td class="v">Freehold<em>Two adjacent titles</em></td></tr>
+            <tr><td class="k">Plot A</td><td class="v">0.510 acres<em>21.86 m wide · 94.67 m (L) · 84.48 m (R)</em></td></tr>
+            <tr><td class="k">Plot B</td><td class="v">0.499 acres<em>26.18 m wide · 84.43 m (L) · 76.24 m (R)</em></td></tr>
+            <tr><td class="k">Combined</td><td class="v">1.009 acres<em>48.04 m frontage · ~ 4 084 m²</em></td></tr>
+            <tr><td class="k">Shape</td><td class="v">Near-rectangular, side-by-side</td></tr>
+            <tr><td class="k">Topography</td><td class="v">Gently sloping, well-drained</td></tr>
+            <tr><td class="k">Boundary</td><td class="v">Mature hedge &amp; perimeter fence</td></tr>
+            <tr><td class="k">Services</td><td class="v">Mains water · grid power · borehole-ready</td></tr>
+            <tr><td class="k">Use</td><td class="v">Residential, low density</td></tr>
+            <tr><td class="k">Sale</td><td class="v">Both plots together<em>Single transaction · KES {{price}}</em></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <p class="small" style="margin-top:16px; max-width: 90%;">Site plan indicative, not to survey accuracy. Final dimensions to be confirmed against registered titles and surveyor's report.</p>
+    </div>
+    <div class="runfoot"><span>SANSI AFRICAPRIVATE &amp; CONFIDENTIAL</span><span>04 / 06</span></div>
+  </section>
+
+  <!-- ============ PAGE 5 — GALLERY ============ -->
+  <section class="page">
+    <div class="runhead"><span>{{title}}<span class="dot"></span>Photographs</span><span>{{referenceNumber}}</span></div>
+    <div class="page-inner gallery">
+      <div>
+        <div class="eyebrow">§ IV — On the ground</div>
+        <h1>{{featureHeadline}}</h1>
+        <p class="body gallery-intro">The land photographs as a garden, not a building site. Mature traveller's palms, bamboo screens, heliconia and indigenous canopy — the kind of setting that takes a decade to make and an afternoon to fall for.</p>
+      </div>
+
+      <div class="gallery-grid">
+        <div class="ph real" data-cap="01 — Garden path, southern boundary" style="grid-column: span 4; grid-row: span 3;"></div>
+        <div class="ph real" data-cap="02 — Clearing under the canopy" style="grid-column: span 2; grid-row: span 2; background-image:url('assets/gallery-02.jpg');"></div>
+        <div class="ph real" data-cap="03 — Open lawn, mid-parcel" style="grid-column: span 2; grid-row: span 1; background-image:url('assets/gallery-03.jpg');"></div>
+        <div class="ph real" data-cap="04 — Bench seating, bamboo grove" style="grid-column: span 3; grid-row: span 2; background-image:url('assets/gallery-12.jpg');"></div>
+        <div class="ph real" data-cap="05 — Garden path, northern boundary" style="grid-column: span 3; grid-row: span 2; background-image:url('assets/gallery-10.jpg');"></div>
+      </div>
+
+      <p class="small" style="margin-top:18px;">Additional photography available on request. Drone and twilight imagery commissioned for shortlisted buyers.</p>
+    </div>
+    <div class="runfoot"><span>SANSI AFRICAPRIVATE &amp; CONFIDENTIAL</span><span>05 / 06</span></div>
+  </section>
+
+  <!-- ============ PAGE 6 — TERMS & CONTACT ============ -->
+  <section class="page">
+    <div class="runhead"><span>{{title}}<span class="dot"></span>Terms &amp; enquiries</span><span>{{referenceNumber}}</span></div>
+    <div class="page-inner closing">
+      <div>
+        <div class="eyebrow">§ V — Terms &amp; Enquiries</div>
+        <h1>{{closingHeadline}}</h1>
+      </div>
+
+      <div>
+        <div class="terms-grid">
+          <div>
+            <h2>The terms.</h2>
+            <p>The parcel is offered freehold, comprising two adjacent registered titles sold together as a single one-acre lot. Asking price is KES {{price}}, exclusive of legal fees, stamp duty and statutory charges. Subdivision, separate sale or part-sale is not contemplated.</p>
+            <p>Title deeds, recent searches and survey beacons are available for inspection by qualified buyers under a non-disclosure undertaking.</p>
+          </div>
+          <div>
+            <h2>Process.</h2>
+            <ul class="keylist">
+              <li><span class="k">Step 01</span><span>Written expression of interest &amp; introduction</span></li>
+              <li><span class="k">Step 02</span><span>NDA, brochure pack &amp; private viewing</span></li>
+              <li><span class="k">Step 03</span><span>Title search &amp; surveyor's confirmation</span></li>
+              <li><span class="k">Step 04</span><span>Offer, sale agreement &amp; deposit</span></li>
+              <li><span class="k">Step 05</span><span>Completion &amp; transfer of titles</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="contact-card">
+        <div>
+          <div class="eyebrow">Enquiries</div>
+          <h3>For private viewing,<br/>please <em>get in touch</em>.</h3>
+        </div>
+        <div class="info">
+          <span class="label2">Sole agent</span>
+          <b>Sansi Africa</b><br/>
+          Nairobi, Kenya
+          <span class="label2">Direct</span>
+          +254 780 700 567<br/>
+          sansi@sansi.africa &nbsp;·&nbsp; info@sansi.africa
+          <span class="label2">Reference</span>
+          File no. {{referenceNumber}}
+        </div>
+      </div>
+
+      <p class="disclaim">
+          This brochure is issued for information only and does not constitute, nor form part of, any offer or contract. All particulars — including areas, dimensions, distances and tenure — are given in good faith and believed correct, but are not warranted; intending purchasers must satisfy themselves by inspection and independent enquiry. Photography is illustrative. Maps and site plans are indicative and not to survey accuracy. © 2026 Sansi Properties. All rights reserved.
+        </p>
+    </div>
+    <div class="runfoot"><span>
+</span><span>06 / 06</span></div>
+  </section>
+
+</div>
+
+
+</body>
+</html>
