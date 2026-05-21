@@ -426,6 +426,263 @@ fidelity.
 - Original zip from the client: `kenya/Carol Lees.zip` (~31 MB — can be
   deleted)
 
+### Latest direction: per-page template architecture (May 21 onward)
+
+The newest architectural decision — adopted after looking at the size and
+complexity of `stripped-brochure.html` — is to **split the brochure into
+six separate per-page templates** instead of one monolithic file.
+
+This SUPERSEDES the "templatise the single stripped HTML file" plan
+described above. Treat the earlier "What's left to do for the brochure"
+list as historical context; the revised plan is at the end of this
+subsection.
+
+#### What this means
+
+Instead of one 945-line file holding all six pages, we'd have:
+
+```
+templates/brochure/
+├── _shared.css              shared design tokens, fonts, type scale
+├── 01-cover.html
+├── 02-at-a-glance.html
+├── 03-location.html
+├── 04-site-plan.html
+├── 05-feature.html         (or 05-gallery, depending on property type)
+└── 06-terms-and-contact.html
+```
+
+Each file is a self-contained A4-sized HTML snippet that imports the
+shared CSS. No file knows about the others.
+
+#### Why this is better
+
+1. **Easier to fill.** Each template has 2–5 slots, not ~15. Smaller,
+   more focused replacement step. Cleaner mental model when reading
+   the code or debugging output.
+2. **Less error scope.** A CSS bug on page 4 can't push page 2 around.
+   A Claude hallucination in the feature page can't bleed into the cover.
+3. **Per-property variability becomes natural.** The render pipeline
+   picks WHICH templates to include based on the property's data:
+   - Land/plots: keep `04-site-plan`, drop house-only content
+   - Apartments: drop `04-site-plan`, emphasise built area + amenities
+   - Restored heritage homes: add an extra "the restoration" page
+   - Beachfront homes: a "the setting" feature page with ocean imagery
+4. **Designers and devs can iterate page-by-page.** Fix the closing
+   page's disclaimer overflow without re-validating that the cover
+   still renders correctly. Marketing person can hand back one
+   page's `.html` for review without us regenerating the entire deck.
+5. **Slot prompts to Claude become per-page.** Smaller scope, sharper
+   few-shot examples, lower token budget per call. A targeted "fill
+   the cover" prompt with 4 slots returns faster and is easier to
+   evaluate than one 15-slot mega-prompt.
+6. **Caching potential.** Pages that didn't change between regenerations
+   (e.g. the static "process & terms" block) can be cached and
+   skipped — only the data/AI-driven pages re-render.
+7. **Failures degrade gracefully.** If Claude misfires on the feature
+   page, we can re-draft just that page from the preview UI without
+   resetting the other five.
+
+#### How the pipeline changes
+
+Old plan:
+```
+property + 1 big slot set → 1 templated HTML → Puppeteer → 1 PDF
+```
+
+New plan:
+```
+property data
+   ↓
+For each page in [01..06]:
+   ├── page-selection rule (e.g. skip 04-site-plan if apartment)
+   ├── Claude fills that page's slots only
+   └── render that page's HTML with the filled slots
+   ↓
+Concatenate all included pages into one master HTML
+   ↓
+Puppeteer → PDF
+   ↓
+Stream to browser
+```
+
+Each step is small, isolated, inspectable, and individually retry-able.
+
+#### Code shape after this pivot
+
+`lib/brochure/types.ts` splits into per-page types:
+
+```ts
+// lib/brochure/types.ts
+export interface CoverSlots {
+  coverEyebrow: string;
+  coverTitle: string;        // can be a 2-line break with <em>
+  coverTagline: string;
+}
+export interface GlanceSlots {
+  headline: string;
+  subhead: string;
+  blurb: string;
+}
+export interface LocationSlots {
+  headline: string;
+  intro: string;
+}
+export interface SitePlanSlots {
+  headline: string;
+}
+export interface FeatureSlots {
+  headline: string;
+  body: string;
+}
+export interface ClosingSlots {
+  headline: string;
+  termsPreamble: string;
+}
+
+export interface BrochureSlots {
+  cover: CoverSlots;
+  glance: GlanceSlots;
+  location: LocationSlots;
+  sitePlan?: SitePlanSlots;   // optional based on data
+  feature: FeatureSlots;
+  closing: ClosingSlots;
+}
+```
+
+Claude prompts get one file per page (`lib/brochure/prompts/cover.ts`,
+`lib/brochure/prompts/glance.ts`, …). Each file has:
+- A page-specific system prompt
+- 1–2 page-specific few-shot examples pulled from the reference brochure
+- A page-specific tool schema
+
+A new `lib/brochure/pages.ts` defines the page-selection rules:
+
+```ts
+export type PageId = "cover" | "glance" | "location" | "sitePlan" | "feature" | "closing";
+
+export function pagesFor(p: PropertyRecord): PageId[] {
+  const out: PageId[] = ["cover", "glance"];
+  if (p.city) out.push("location");
+  if (p.showPlotOnBrochure !== false && p.plotWidthMeters && p.plotLengthMeters) {
+    out.push("sitePlan");
+  }
+  out.push("feature", "closing");
+  return out;
+}
+```
+
+A new `lib/brochure/assembler.ts` does the final glue:
+
+```ts
+// Given a property + all per-page slots, returns the final concatenated
+// HTML ready for Puppeteer. Reads each page template from
+// templates/brochure/<id>.html, replaces {{slot}} placeholders, joins
+// them with <div class="page-break"></div>.
+export async function assembleBrochure(
+  p: PropertyRecord,
+  allSlots: BrochureSlots
+): Promise<string> { … }
+```
+
+`lib/brochure/claude.ts` exposes one function per page:
+
+```ts
+export async function draftCoverCopy(p): Promise<CoverSlots> { … }
+export async function draftGlanceCopy(p): Promise<GlanceSlots> { … }
+// …
+```
+
+`app/api/properties/[id]/brochure/draft/route.ts` becomes:
+- `POST /api/properties/[id]/brochure/draft` — runs ALL pages
+- `POST /api/properties/[id]/brochure/draft?page=cover` — runs just one page
+  (so the UI can offer "re-draft this page")
+
+The PDF route stays a single endpoint that calls the assembler then
+hands the HTML to Puppeteer.
+
+#### Preview/edit UI after this pivot
+
+`/properties/[id]/brochure` becomes a multi-section editor:
+
+```
+▾ Cover               [re-draft this page]
+   Eyebrow:   [______________________]
+   Title:     [______________________]
+   Tagline:   [______________________]
+
+▾ At a glance         [re-draft this page]
+   Headline:  [______________________]
+   ...
+
+▾ Site plan           [auto-skipped — no plot dimensions]
+                       (not editable; greyed out)
+
+...
+
+[ Download PDF ]
+```
+
+Each section is collapsible. Each section shows its own "re-draft"
+button. Skipped pages render as greyed cards with a note explaining
+why (e.g. "Skipped: this is an apartment, no plot diagram applies").
+
+#### Revised "what's left to do for the brochure"
+
+The earlier 6-step plan in this section is replaced with:
+
+1. Create `templates/brochure/` directory + 6 per-page HTML files + a
+   shared `_shared.css`. Extract each page out of `stripped-brochure.html`.
+2. Define the slot inventory per page; codify in
+   `lib/brochure/types.ts`.
+3. Write one Claude prompt module per page in
+   `lib/brochure/prompts/*`, each with its own tool schema and
+   page-specific few-shots from the reference.
+4. Implement `lib/brochure/pages.ts` (page-selection rules) and
+   `lib/brochure/assembler.ts` (HTML assembly + slot interpolation).
+5. Update `lib/brochure/claude.ts` to expose per-page draft functions.
+6. Install Puppeteer (`puppeteer` for local; `puppeteer-core` +
+   `@sparticuz/chromium` for Vercel / serverless).
+7. Replace `app/api/properties/[id]/brochure/pdf/route.ts` with the
+   assembler + Puppeteer pipeline.
+8. Update `app/api/properties/[id]/brochure/draft/route.ts` to support
+   `?page=<id>` for per-page re-drafts.
+9. Rewrite `components/BrochureEditor.tsx` as the per-page collapsible
+   editor described above.
+10. Remove the `@react-pdf/renderer` template
+    (`lib/brochure/template.tsx`) once Puppeteer-driven brochures are
+    working end-to-end. One pipeline is simpler than two.
+
+#### Things to be careful of with this architecture
+
+- **Typography consistency across pages.** Each page imports
+  `_shared.css` — don't let individual page files override fonts or
+  colors unless intentional. Centralise design tokens.
+- **Page-break behaviour.** Each page template should end with
+  `<div style="page-break-after: always;"></div>` (or the assembler
+  inserts it). Use Puppeteer's `@page { size: A4; margin: 0; }` CSS
+  to lock the page format.
+- **Shared running header / footer.** Two options: either include them
+  inside each page template (simple but redundant), or use Puppeteer's
+  `headerTemplate` / `footerTemplate` options at PDF generation time
+  (DRY but Puppeteer's header HTML has size limits and font weirdness).
+  Recommend: in-template until you hit a maintenance pain point.
+- **The site-plan SVG.** Still needs polygon recomputation from
+  `plotWidthMeters × plotLengthMeters`. Belongs ONLY in
+  `04-site-plan.html`. Drive the polygon points + dimension labels
+  from data, not hardcoded.
+- **Photo URLs.** In dev the URLs are `/uploads/...` (same-origin).
+  In prod they're Supabase Storage public URLs. Puppeteer will load
+  both fine, but ensure the dev server is reachable from wherever
+  Puppeteer is running (loopback fine on local, more careful on
+  serverless — may need to inline images as data URIs in production
+  if the Puppeteer Lambda can't reach localhost).
+- **One Claude API call per page** means ~6 calls per brochure. With
+  Claude Sonnet 4.5 latency that's ~30–60 seconds total if sequential,
+  ~10 seconds if parallelised. **Parallelise** — `Promise.all` across
+  the included pages. The preview UI should be designed to handle that
+  wait (skeletons, "drafting cover…" / "drafting feature…" indicators).
+
 ---
 
 ## 11. Where everything lives (file map)
