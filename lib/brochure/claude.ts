@@ -4,7 +4,11 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt";
-import type { BrochureSlots } from "./types";
+import { COVER_SYSTEM_PROMPT, buildCoverUserPrompt, COVER_TOOL } from "./prompts/cover";
+import { GLANCE_SYSTEM_PROMPT, buildGlanceUserPrompt, GLANCE_TOOL } from "./prompts/glance";
+import { LOCATION_SYSTEM_PROMPT, buildLocationUserPrompt, LOCATION_TOOL } from "./prompts/location";
+import { SITE_PLAN_SYSTEM_PROMPT, buildSitePlanUserPrompt, SITE_PLAN_TOOL } from "./prompts/site-plan";
+import type { BrochureSlots, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots } from "./types";
 import type { PropertyRecord } from "@/lib/repo/properties";
 
 let cached: Anthropic | null = null;
@@ -49,6 +53,77 @@ const TOOL = {
     additionalProperties: false,
   },
 };
+
+/** Per-page cover draft. Returns just the 3 cover slots. Used by the new
+ *  per-page pipeline (templates/brochure/01-cover.html). */
+export async function draftCoverCopy(p: PropertyRecord): Promise<CoverSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 512,
+    temperature: 0.4,
+    system: COVER_SYSTEM_PROMPT,
+    tools: [COVER_TOOL],
+    tool_choice: { type: "tool", name: COVER_TOOL.name },
+    messages: [{ role: "user", content: buildCoverUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== COVER_TOOL.name) {
+    throw new Error("Claude did not return cover copy in the expected format.");
+  }
+  return block.input as CoverSlots;
+}
+
+/** Per-page page-2 draft. Returns the 5 "at a glance" slots. */
+export async function draftGlanceCopy(p: PropertyRecord): Promise<GlanceSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 768,
+    temperature: 0.4,
+    system: GLANCE_SYSTEM_PROMPT,
+    tools: [GLANCE_TOOL],
+    tool_choice: { type: "tool", name: GLANCE_TOOL.name },
+    messages: [{ role: "user", content: buildGlanceUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== GLANCE_TOOL.name) {
+    throw new Error("Claude did not return glance copy in the expected format.");
+  }
+  return block.input as GlanceSlots;
+}
+
+export async function draftLocationCopy(p: PropertyRecord): Promise<LocationSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 768,
+    temperature: 0.4,
+    system: LOCATION_SYSTEM_PROMPT,
+    tools: [LOCATION_TOOL],
+    tool_choice: { type: "tool", name: LOCATION_TOOL.name },
+    messages: [{ role: "user", content: buildLocationUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== LOCATION_TOOL.name) {
+    throw new Error("Claude did not return location copy in the expected format.");
+  }
+  return block.input as LocationSlots;
+}
+
+export async function draftSitePlanCopy(p: PropertyRecord): Promise<SitePlanSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 256,
+    temperature: 0.4,
+    system: SITE_PLAN_SYSTEM_PROMPT,
+    tools: [SITE_PLAN_TOOL],
+    tool_choice: { type: "tool", name: SITE_PLAN_TOOL.name },
+    messages: [{ role: "user", content: buildSitePlanUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== SITE_PLAN_TOOL.name) {
+    throw new Error("Claude did not return site-plan copy in the expected format.");
+  }
+  return block.input as SitePlanSlots;
+}
 
 export async function draftBrochureCopy(p: PropertyRecord): Promise<BrochureSlots> {
   const res = await client().messages.create({

@@ -1,0 +1,42 @@
+<!--
+  Page 4 — Site / floor plan & particulars.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{floorPlanImg}}     — data-URI / external URL for the uploaded floor plan
+                            image. Empty string → caption + neutral panel only.
+    {{particularsRows}}  — pre-rendered <tr> rows from the assembler.
+
+  AI slots:
+    {{landHeadline}}     — e.g. "Two plots, one clean acre."
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Site plan &amp; particulars</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner site">
+    <div>
+      <div class="eyebrow">§ III — The Land</div>
+      <h1>{{landHeadline}}</h1>
+    </div>
+
+    <div class="site-grid">
+      <div class="siteplan">
+        <div class="label">Fig. 02 — Site / floor plan</div>
+        {{floorPlanImg}}
+      </div>
+
+      <div class="specs">
+        <div class="eyebrow" style="margin-bottom:8px;">Particulars</div>
+        <h2>Land &amp; tenure.</h2>
+        <table class="spectable">
+          {{particularsRows}}
+        </table>
+      </div>
+    </div>
+
+    <p class="small" style="margin-top:16px; max-width: 90%;">
+      Site / floor plan indicative. Final dimensions to be confirmed against
+      registered titles and surveyor's report.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

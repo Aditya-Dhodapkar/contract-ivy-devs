@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{title}} — Property Brochure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --paper: #f3efe6;
+    --paper-2: #ebe5d7;
+    --ink: #1c1f1a;
+    --ink-soft: #4a4d44;
+    --ink-mute: #8a8a7e;
+    --rule: #c9c2b1;
+    --accent: #2d3b2c;       /* deep forest */
+    --accent-2: #6b5a3e;     /* warm bronze */
+    --berry: #8a3a3a;        /* heliconia red, used sparingly */
+    --page-w: 794px;         /* A4 @ 96dpi */
+    --page-h: 1123px;
+    --margin: 56px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #d6d1c4;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+    padding: 32px 0 80px;
+  }
+
+  /* Page shell */
+  .deck { display: flex; flex-direction: column; align-items: center; gap: 28px; }
+  .page {
+    width: var(--page-w);
+    height: var(--page-h);
+    background: var(--paper);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 30px 60px -30px rgba(0,0,0,.25);
+    color: var(--ink);
+  }
+  .page-inner {
+    position: absolute;
+    inset: var(--margin);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Running header / footer */
+  .runhead, .runfoot {
+    position: absolute;
+    left: var(--margin); right: var(--margin);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .runhead { top: 28px; }
+  .runfoot { bottom: 28px; }
+  .runhead .dot, .runfoot .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); display: inline-block; margin: 0 8px; vertical-align: middle; }
+
+  /* Type */
+  .display {
+    font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    text-wrap: pretty;
+  }
+  .small {
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .num {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    line-height: 1;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+  /* === COVER === */
+  .cover { background: var(--paper); }
+  .cover-hero {
+    position: absolute; inset: 0;
+    background-image: url('assets/hero.jpg');
+    background-size: cover; background-position: center;
+  }
+  .cover-vignette {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgba(15,20,12,.55) 0%, rgba(15,20,12,.15) 28%, rgba(15,20,12,.08) 55%, rgba(15,20,12,.78) 100%);
+  }
+  .cover-frame {
+    position: absolute; inset: 28px;
+    border: 1px solid rgba(243,239,230,.45);
+    pointer-events: none;
+  }
+  .cover-content {
+    position: absolute; inset: 0;
+    padding: 56px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    color: #f3efe6;
+  }
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .cover-mark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .cover-mark span { display: block; font-style: normal; font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .28em; text-transform: uppercase; margin-top: 8px; opacity: .8; }
+  .cover-meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    line-height: 1.9;
+    opacity: .85;
+  }
+  .cover-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 96px;
+    line-height: 0.92;
+    letter-spacing: -0.015em;
+  }
+  .cover-title em { font-style: italic; font-weight: 300; color: #e7dcc4; }
+  .cover-sub {
+    margin-top: 18px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    letter-spacing: .02em;
+    max-width: 460px;
+    color: rgba(243,239,230,.85);
+  }
+  .cover-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+  .cover-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    opacity: .85;
+  }
+  .cover-tag .bar { display: inline-block; width: 28px; height: 1px; background: currentColor; vertical-align: middle; margin-right: 12px; opacity: .7; }
+
+  /* === GLANCE === */
+  .glance-hd {
+    display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px;
+    padding-bottom: 22px; border-bottom: 1px solid var(--rule);
+  }
+  .glance-hd h1 {
+    margin: 12px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 56px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .glance-hd h1 em { font-style: italic; color: var(--accent); }
+  .glance-hd .pageno { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .2em; color: var(--ink-mute); }
+
+  .price-row {
+    margin-top: 28px;
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px;
+    align-items: start;
+  }
+  .price-block .label { margin-bottom: 10px; }
+  .price-figure {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 64px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .price-figure .ccy {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: .14em;
+    color: var(--accent);
+    display: inline-block;
+    transform: translateY(-22px);
+    margin-right: 6px;
+  }
+  .price-meta { font-size: 12px; color: var(--ink-mute); margin-top: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+  .blurb {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+
+  .facts {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+  }
+  .fact {
+    padding: 20px 14px 18px 18px;
+    border-right: 1px solid var(--rule);
+  }
+  .fact:first-child { padding-left: 0; }
+  .fact:last-child { border-right: 0; padding-right: 0; }
+  .fact .label { margin-bottom: 14px; }
+  .fact .val {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .fact .val small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    display: block;
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+
+  .glance-body {
+    margin-top: 38px;
+    display: grid; grid-template-columns: 2fr 1.1fr; gap: 40px;
+  }
+  .glance-body h2 {
+    margin: 0 0 14px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+  .glance-body p + p { margin-top: 12px; }
+  .keylist { list-style: none; margin: 0; padding: 0; }
+  .keylist li {
+    display: grid; grid-template-columns: 80px 1fr; gap: 14px;
+    padding: 10px 0; border-bottom: 1px dashed var(--rule);
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .keylist li:first-child { border-top: 1px dashed var(--rule); }
+  .keylist .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    padding-top: 2px;
+  }
+
+  /* === LOCATION === */
+  .loc { display: grid; grid-template-rows: auto auto 1fr auto; gap: 24px; height: 100%; }
+  .loc h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .loc h1 em { font-style: italic; color: var(--accent); }
+  .loc-intro { max-width: 460px; }
+  /* minmax(0,…) prevents grid items' default min-width:auto from blowing
+     the columns wider than 1.15fr/1fr — without it long place names in the
+     "Within reach" list overflow the page. */
+  .loc-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; }
+  .map-card {
+    background: var(--paper-2);
+    padding: 22px;
+    position: relative;
+    aspect-ratio: 1 / 1.05;
+  }
+  .map-card .label { position: absolute; top: 18px; left: 22px; }
+  /* coords + scale share a single flex row beneath the map frame so they
+     can't overlap each other. (Was previously position:absolute → collided
+     with .map-coords text in the same corner.) */
+  .map-meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 8px; gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px; letter-spacing: .12em; color: var(--ink-mute); text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .map-meta > span { white-space: nowrap; }
+  .map-meta .scale { flex-shrink: 0; }
+  .map-svg { width: 100%; height: 100%; display: block; }
+
+  .nearby {
+    list-style: none; margin: 0; padding: 0;
+  }
+  .nearby li {
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 14px;
+    align-items: baseline;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .nearby li:first-child { border-top: 1px solid var(--rule); }
+  .nearby .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--accent); letter-spacing: .12em;
+  }
+  .nearby .name { font-size: 13px; color: var(--ink); }
+  .nearby .name span { display: block; color: var(--ink-mute); font-size: 11px; margin-top: 2px; }
+  .nearby .dist {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .nearby .dist small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    margin-left: 4px;
+  }
+
+  /* === SITE PLAN === */
+  .site h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 52px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .site h1 em { font-style: italic; color: var(--accent); }
+  .site-grid {
+    margin-top: 28px;
+    display: grid;
+    /* minmax(0,…) overrides grid items' default min-width:auto so the SVG
+       can't blow out the left column and push specs off-page. */
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 32px;
+  }
+  .siteplan {
+    background: var(--paper-2);
+    padding: 22px;
+    aspect-ratio: 1 / 1;
+    position: relative;
+  }
+  .siteplan .label { position: absolute; top: 18px; left: 22px; }
+  .siteplan .compass {
+    position: absolute; top: 18px; right: 22px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .siteplan svg { width: 100%; height: 100%; display: block; }
+  /* Uploaded site/floor plan image — preserves natural aspect ratio inside
+     the panel, with a slight desaturation so colour drawings still feel
+     editorial against the cream paper. */
+  .siteplan-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    filter: saturate(0.85) contrast(1.04);
+  }
+  .siteplan-empty {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-mute);
+  }
+
+  .specs { display: flex; flex-direction: column; gap: 0; }
+  .specs h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 24px;
+    margin: 0 0 14px;
+  }
+  .spectable { width: 100%; border-collapse: collapse; }
+  .spectable td {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 12px;
+    vertical-align: top;
+  }
+  .spectable tr:first-child td { border-top: 1px solid var(--rule); }
+  .spectable .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    width: 38%;
+    padding-top: 13px;
+  }
+  .spectable .v { color: var(--ink); }
+  .spectable .v em { font-style: italic; color: var(--ink-mute); display: block; font-size: 11px; margin-top: 2px; }
+
+  /* === GALLERY === */
+  .gallery h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .gallery h1 em { font-style: italic; color: var(--accent); }
+  .gallery-intro { max-width: 460px; margin-top: 10px; }
+  .gallery-grid {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: 130px;
+    gap: 10px;
+  }
+  .ph {
+    position: relative;
+    overflow: hidden;
+  }
+  .ph::after {
+    content: attr(data-cap);
+    position: absolute;
+    left: 12px; bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(243,239,230,.92);
+    background: rgba(20,24,16,.45);
+    padding: 4px 8px;
+    backdrop-filter: blur(2px);
+  }
+  .ph.real {
+    background-image: url('assets/hero.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+  .ph.placeholder {
+    background:
+      repeating-linear-gradient(135deg, rgba(45,59,44,.10) 0 8px, rgba(45,59,44,.04) 8px 16px),
+      var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-mute);
+  }
+  .ph.placeholder span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  .ph.placeholder::after { color: var(--ink-mute); background: transparent; backdrop-filter: none; }
+
+  /* === TERMS / CONTACT === */
+  /* 4 rows: heading · terms (1fr fills middle) · contact card · disclaim.
+     padding-bottom on the grid pushes the whole stack up so the disclaim
+     row sits well above the runfoot with breathing room. */
+  .closing {
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+    gap: 20px;
+    height: 100%;
+    padding-bottom: 110px;
+  }
+  .closing h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .closing h1 em { font-style: italic; color: var(--accent); }
+
+  .terms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 8px; }
+  .terms-grid h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    margin: 0 0 12px;
+  }
+  .terms-grid p { font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
+  .terms-grid .keylist li { grid-template-columns: 100px 1fr; }
+
+  .contact-card {
+    margin-top: 8px;
+    background: var(--accent);
+    color: #f3efe6;
+    padding: 28px 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    position: relative;
+  }
+  .contact-card .eyebrow { color: rgba(243,239,230,.65); }
+  .contact-card h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    margin: 10px 0 0;
+    letter-spacing: -0.01em;
+  }
+  .contact-card h3 em { font-style: italic; color: #e7dcc4; }
+  .contact-card .info {
+    font-size: 12px;
+    line-height: 1.85;
+    color: rgba(243,239,230,.92);
+  }
+  .contact-card .info b { font-weight: 500; color: #fff; }
+  .contact-card .info .label2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: rgba(243,239,230,.55);
+    display: block;
+    margin-top: 10px;
+  }
+  .contact-card .info .label2:first-child { margin-top: 0; }
+
+  .disclaim {
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    letter-spacing: .08em;
+    line-height: 1.5;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+  }
+
+  /* Print */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .deck { gap: 0; }
+    .page { box-shadow: none; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }
+  @page { size: A4; margin: 0; }
+
+  /* Edit mode pill */
+  .edit-hint {
+    position: fixed; top: 14px; right: 14px;
+    background: var(--accent); color: #f3efe6;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-radius: 999px;
+    z-index: 100;
+    opacity: .85;
+  }
+
+  /* === Map block (brochure-themed embed of a real static map) === */
+  .map-frame {
+    position: relative;
+    margin-top: 12px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    aspect-ratio: 1 / 1.05;
+    overflow: hidden;
+  }
+  .map-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* outdoors-v12 base style brings the landscape colours (blue water,
+       green vegetation, beige/brown terrain). Filter is intentionally
+       gentle: slight saturation drop + tiny contrast lift so the map sits
+       elegantly against the cream paper without feeling like a screenshot. */
+    filter: saturate(0.9) contrast(1.04);
+  }
+  .map-n {
+    position: absolute; top: 10px; right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .2em;
+    color: var(--accent);
+    background: rgba(243, 239, 230, 0.85);
+    border: 1px solid var(--rule);
+    padding: 4px 7px;
+  }
+  .map-coords {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    letter-spacing: .14em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+  }
+
+  /* === PDF / Puppeteer overrides === */
+  @page { size: A4; margin: 0; }
+  body { background: #fff !important; padding: 0 !important; }
+  .deck { gap: 0 !important; }
+  .page { box-shadow: none !important; break-after: page; page-break-after: always; }
+  .page:last-of-type { break-after: auto; page-break-after: auto; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+{{PAGES}}
+</div>
+
+</body>
+</html>

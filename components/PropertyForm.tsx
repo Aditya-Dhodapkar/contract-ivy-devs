@@ -82,6 +82,8 @@ export function PropertyForm({
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState<string[]>(existing?.photos ?? []);
   const [uploading, setUploading] = useState(0);
+  const [floorPlan, setFloorPlan] = useState<string>(existing?.floorPlan ?? "");
+  const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
   const [highlights, setHighlights] = useState<string[]>(existing?.highlights ?? []);
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
   // Brochure toggles default to true (show by default). Owner unticks per
@@ -108,27 +110,36 @@ export function PropertyForm({
   // Always normalise to string-typed fields. Inputs need a stable controlled
   // value from the very first render — undefined → string flips React from
   // uncontrolled to controlled and triggers a console warning.
-  const normRow = (r: { place?: unknown; distance?: unknown } | undefined | null) => ({
+  const normRow = (
+    r: { place?: unknown; distance?: unknown; description?: unknown } | undefined | null
+  ) => ({
     place: typeof r?.place === "string" ? r.place : "",
     distance: typeof r?.distance === "string" ? r.distance : "",
+    description: typeof r?.description === "string" ? r.description : "",
   });
-  const [nearby, setNearby] = useState<{ place: string; distance: string }[]>(
+  const [nearby, setNearby] = useState<{ place: string; distance: string; description: string }[]>(
     Array.isArray(existing?.nearby) && existing!.nearby!.length
       ? existing!.nearby!.map(normRow)
-      : [{ place: "", distance: "" }]
+      : [{ place: "", distance: "", description: "" }]
   );
 
-  function updateNearby(i: number, field: "place" | "distance", value: string) {
+  function updateNearby(
+    i: number,
+    field: "place" | "distance" | "description",
+    value: string
+  ) {
     setNearby((curr) =>
       curr.map((row, idx) => (idx === i ? { ...normRow(row), [field]: value } : row))
     );
   }
   function addNearby() {
-    setNearby((curr) => [...curr, { place: "", distance: "" }]);
+    setNearby((curr) => [...curr, { place: "", distance: "", description: "" }]);
   }
   function removeNearby(i: number) {
     setNearby((curr) =>
-      curr.length > 1 ? curr.filter((_, idx) => idx !== i) : [{ place: "", distance: "" }]
+      curr.length > 1
+        ? curr.filter((_, idx) => idx !== i)
+        : [{ place: "", distance: "", description: "" }]
     );
   }
   // Refs are mutated synchronously (no re-render gap) — a real lock against
@@ -166,6 +177,24 @@ export function PropertyForm({
     setPhotos((curr) => curr.filter((u) => u !== url));
   }
 
+  async function uploadFloorPlan(file: File | null | undefined) {
+    if (!file) return;
+    setUploadingFloorPlan(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Floor plan upload failed");
+      setFloorPlan(j.url as string);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploadingFloorPlan(false);
+    }
+  }
+
   function setPrimary(url: string) {
     setPhotos((curr) => [url, ...curr.filter((u) => u !== url)]);
   }
@@ -198,6 +227,16 @@ export function PropertyForm({
       bathrooms: f.get("bathrooms") ? Number(f.get("bathrooms")) : undefined,
       yearBuilt: f.get("yearBuilt") ? Number(f.get("yearBuilt")) : undefined,
       yearRestored: f.get("yearRestored") ? Number(f.get("yearRestored")) : undefined,
+      tenure: f.get("tenure") || undefined,
+      shape: f.get("shape") || undefined,
+      siteCondition: f.get("siteCondition") || undefined,
+      saleTerms: f.get("saleTerms") || undefined,
+      topography: f.get("topography") || undefined,
+      boundary: f.get("boundary") || undefined,
+      services: f.get("services") || undefined,
+      floorPlan: floorPlan || undefined,
+      latitude: f.get("latitude") ? Number(f.get("latitude")) : undefined,
+      longitude: f.get("longitude") ? Number(f.get("longitude")) : undefined,
       plotSize: f.get("plotSize") || undefined,
       builtArea: f.get("builtArea") || undefined,
       facingDirection: f.get("facingDirection") || undefined,
@@ -210,7 +249,7 @@ export function PropertyForm({
       amenities,
       nearby: nearby
         .map(normRow)
-        .filter((r) => r.place.trim() || r.distance.trim()),
+        .filter((r) => r.place.trim() || r.distance.trim() || r.description.trim()),
       photos,
     };
     if (showAgentPicker && assignedAgentId) {
@@ -438,7 +477,7 @@ export function PropertyForm({
           <span className={labelText}>Nearby places</span>
           <ul className="space-y-2">
             {nearby.map((row, i) => (
-              <li key={i} className="grid grid-cols-[1fr,12rem,auto] items-center gap-2">
+              <li key={i} className="grid grid-cols-[1fr,1fr,9rem,auto] items-center gap-2">
                 <input
                   value={row.place}
                   onChange={(e) => updateNearby(i, "place", e.target.value)}
@@ -446,9 +485,15 @@ export function PropertyForm({
                   className={field}
                 />
                 <input
+                  value={row.description}
+                  onChange={(e) => updateNearby(i, "description", e.target.value)}
+                  placeholder="Description (e.g. Diplomatic complex)"
+                  className={field}
+                />
+                <input
                   value={row.distance}
                   onChange={(e) => updateNearby(i, "distance", e.target.value)}
-                  placeholder="Distance / time (e.g. 5 min)"
+                  placeholder="e.g. 5 min · 3.2 km"
                   className={field}
                 />
                 <button
@@ -566,6 +611,150 @@ export function PropertyForm({
           The primary photo (★) is shown on the website and on the brochure cover. Tap ☆ on any other photo to make it the primary. Use ← → to reorder, ✕ to remove.
         </p>
       </div>
+
+      <section className="space-y-4 border-t border-hairline/15 pt-5">
+        <p className="text-eyebrow uppercase text-ash">Coordinates (for brochure map)</p>
+        <div className="grid grid-cols-2 gap-4">
+          <label className={label}>
+            <span className={labelText}>Latitude</span>
+            <input
+              name="latitude"
+              type="number"
+              step="any"
+              defaultValue={v.latitude}
+              placeholder="e.g. -1.2163"
+              className={field}
+            />
+          </label>
+          <label className={label}>
+            <span className={labelText}>Longitude</span>
+            <input
+              name="longitude"
+              type="number"
+              step="any"
+              defaultValue={v.longitude}
+              placeholder="e.g. 36.7928"
+              className={field}
+            />
+          </label>
+        </div>
+        <p className="text-xs text-ash">
+          Tip: open Google Maps, right-click the property location, copy the
+          coordinates. The brochure renders a stylised map centred on these.
+        </p>
+      </section>
+
+      <section className="space-y-4 border-t border-hairline/15 pt-5">
+        <p className="text-eyebrow uppercase text-ash">Title & sale (used on brochure)</p>
+        <div className="grid grid-cols-2 gap-4">
+          <label className={label}>
+            <span className={labelText}>Tenure</span>
+            <select name="tenure" defaultValue={v.tenure ?? ""} className={field}>
+              <option value="">—</option>
+              <option value="freehold">Freehold</option>
+              <option value="leasehold">Leasehold</option>
+            </select>
+          </label>
+          <label className={label}>
+            <span className={labelText}>Shape</span>
+            <input
+              name="shape"
+              defaultValue={v.shape}
+              placeholder="e.g. Rectangular, L-shaped, Irregular"
+              className={field}
+            />
+          </label>
+        </div>
+        <label className={label}>
+          <span className={labelText}>Site condition</span>
+          <input
+            name="siteCondition"
+            defaultValue={v.siteCondition}
+            placeholder="e.g. Vacant · garden state · fenced"
+            className={field}
+          />
+        </label>
+        <label className={label}>
+          <span className={labelText}>Sale terms</span>
+          <input
+            name="saleTerms"
+            defaultValue={v.saleTerms}
+            placeholder="e.g. Single transaction · single buyer"
+            className={field}
+          />
+        </label>
+      </section>
+
+      <section className="space-y-4 border-t border-hairline/15 pt-5">
+        <p className="text-eyebrow uppercase text-ash">Site & services (brochure page 4)</p>
+        <label className={label}>
+          <span className={labelText}>Topography</span>
+          <input
+            name="topography"
+            defaultValue={v.topography}
+            placeholder="e.g. Gently sloping, well-drained"
+            className={field}
+          />
+        </label>
+        <label className={label}>
+          <span className={labelText}>Boundary</span>
+          <input
+            name="boundary"
+            defaultValue={v.boundary}
+            placeholder="e.g. Mature hedge & perimeter fence"
+            className={field}
+          />
+        </label>
+        <label className={label}>
+          <span className={labelText}>Services</span>
+          <input
+            name="services"
+            defaultValue={v.services}
+            placeholder="e.g. Mains water · grid power · borehole-ready"
+            className={field}
+          />
+        </label>
+
+        <div>
+          <span className={labelText}>Site / floor plan</span>
+          {floorPlan ? (
+            <div className="flex items-start gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={floorPlan}
+                alt="Site / floor plan"
+                className="h-32 w-auto border border-hairline/15 bg-ivory"
+              />
+              <button
+                type="button"
+                onClick={() => setFloorPlan("")}
+                className="px-2 py-1 text-eyebrow uppercase text-red-700 hover:underline"
+              >
+                Replace
+              </button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-hairline/30 bg-ivory px-4 py-6 text-sm text-ink-mute hover:bg-ivory-deep">
+              <span>
+                {uploadingFloorPlan ? "Uploading…" : "Click to upload a site or floor plan"}
+              </span>
+              <span className="mt-1 text-xs text-ash">
+                JPG · PNG · WebP · single image · up to 10 MB
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => uploadFloorPlan(e.target.files?.[0])}
+              />
+            </label>
+          )}
+          <p className="mt-2 text-xs text-ash">
+            Optional. Shown on page 4 of the brochure. Use the property's surveyor diagram,
+            architect's floor plan, or any clean black-and-white drawing.
+          </p>
+        </div>
+      </section>
 
       <section className="space-y-3 border-t border-hairline/15 pt-5">
         <p className="text-eyebrow uppercase text-ash">Brochure options</p>

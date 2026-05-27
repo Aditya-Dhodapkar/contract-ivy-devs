@@ -40,7 +40,7 @@ export interface PropertyRecord {
   description?: string;
   highlights?: string[];
   amenities?: string[];
-  nearby?: { place: string; distance: string }[];
+  nearby?: { place: string; distance: string; description?: string }[];
   photos?: string[];
   floorPlan?: string;
   assignedAgentId?: string;
@@ -57,6 +57,20 @@ export interface PropertyRecord {
    *  when the seller wants the location or plot withheld. */
   showMapOnBrochure?: boolean;
   showPlotOnBrochure?: boolean;
+  /** Fields used on the brochure's page-2 keylist + facts block. All
+   *  optional; renderer falls back to "—" or skips the field. */
+  tenure?: "freehold" | "leasehold";
+  shape?: string;          // e.g. "Rectangular", "L-shaped", "Irregular"
+  siteCondition?: string;  // e.g. "Vacant · garden state · fenced"
+  saleTerms?: string;      // e.g. "Single transaction · single buyer"
+  /** Geographic coordinates for the brochure's locality-map embed.
+   *  Optional — the location page hides the map when missing. */
+  latitude?: number;
+  longitude?: number;
+  /** Page-4 particulars-table rows the existing schema didn't cover. */
+  topography?: string;  // e.g. "Gently sloping, well-drained"
+  boundary?: string;    // e.g. "Mature hedge & perimeter fence"
+  services?: string;    // e.g. "Mains water · grid power · borehole-ready"
 }
 
 export interface ListScope {
@@ -110,6 +124,15 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     changes_requested_note: rec.changesRequestedNote,
     show_map_on_brochure: rec.showMapOnBrochure,
     show_plot_on_brochure: rec.showPlotOnBrochure,
+    tenure: rec.tenure,
+    shape: rec.shape,
+    site_condition: rec.siteCondition,
+    sale_terms: rec.saleTerms,
+    latitude: rec.latitude,
+    longitude: rec.longitude,
+    topography: rec.topography,
+    boundary: rec.boundary,
+    services: rec.services,
     idempotency_key: rec.idempotencyKey,
     created_at: rec.createdAt,
   };
@@ -152,6 +175,15 @@ function fromRow(r: Row): PropertyRecord {
     changesRequestedNote: (r.changes_requested_note as string) ?? undefined,
     showMapOnBrochure: r.show_map_on_brochure == null ? undefined : !!r.show_map_on_brochure,
     showPlotOnBrochure: r.show_plot_on_brochure == null ? undefined : !!r.show_plot_on_brochure,
+    tenure: (r.tenure as "freehold" | "leasehold") ?? undefined,
+    shape: (r.shape as string) ?? undefined,
+    siteCondition: (r.site_condition as string) ?? undefined,
+    saleTerms: (r.sale_terms as string) ?? undefined,
+    latitude: r.latitude == null ? undefined : Number(r.latitude),
+    longitude: r.longitude == null ? undefined : Number(r.longitude),
+    topography: (r.topography as string) ?? undefined,
+    boundary: (r.boundary as string) ?? undefined,
+    services: (r.services as string) ?? undefined,
   };
 }
 

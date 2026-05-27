@@ -1,0 +1,49 @@
+<!--
+  Page 1 — Cover.
+  Slots used (data + AI):
+    {{logoUrl}}         data   — server-resolved logo asset URL
+    {{referenceNumber}} data   — property's SA-YYYY-NNN
+    {{coverDate}}       data   — current Month YYYY
+    {{location}}        data   — city, country
+    {{coverHero}}       data   — the property's primary photo (as data URI
+                                  or external URL). Renders full-bleed
+                                  behind the cover content.
+    {{coverEyebrow}}    AI     — short descriptor under the logo block
+                                  (e.g. "A One-Acre Garden Parcel")
+    {{coverTitle}}      AI     — the big serif headline with <em> allowed
+                                  (e.g. "Rosslyn<br/><em>Lone Tree</em>")
+    {{title}}           data   — the property's record title (used in the sub)
+    {{coverSub}}        AI     — the ~40-word evocative sub paragraph
+    {{pageNumber}}      data   — e.g. "01"
+    {{pageTotal}}       data   — e.g. "06"
+-->
+<section class="page cover">
+  <div class="cover-hero" style="background-image: url('{{coverHero}}');"></div>
+  <div class="cover-vignette"></div>
+  <div class="cover-frame"></div>
+  <div class="cover-content">
+    <div class="cover-top">
+      <div class="cover-mark" style="display:flex; align-items:center; gap:14px;">
+        <img src="{{logoUrl}}" alt="Sansi Africa" style="width:54px; height:54px; object-fit:contain; mix-blend-mode:screen; filter:brightness(1.1);" />
+        <div>
+          Sansi&nbsp;<em>·</em>&nbsp;Africa
+          <span>Private sale brochure</span>
+        </div>
+      </div>
+      <div class="cover-meta">
+        File no. {{referenceNumber}}<br/>
+        {{coverDate}}<br/>
+        {{location}}
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow" style="color:#e7dcc4;">{{coverEyebrow}}</div>
+      <h1 class="cover-title" style="margin-top:14px;">{{coverTitle}}</h1>
+      <p class="cover-sub">{{coverSub}}</p>
+    </div>
+    <div class="cover-bottom">
+      <div class="cover-tag"><span class="bar"></span>For private viewing &nbsp;·&nbsp; By appointment only</div>
+      <div class="cover-tag mono">{{pageNumber}}&nbsp;/&nbsp;{{pageTotal}}</div>
+    </div>
+  </div>
+</section>

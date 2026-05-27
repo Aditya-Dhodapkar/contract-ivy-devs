@@ -1,0 +1,85 @@
+<!--
+  Page 2 — At a glance.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{location}} {{pageNumber}} {{pageTotal}}
+    {{priceFormatted}}       — KES number with thousands separators (no symbol)
+    {{factNLabel}} {{factNValue}} {{factNDetail}} for N=1..4
+        — populated by the assembler with type-aware values
+          (house/apartment vs land vs commercial)
+    {{keyLocation}} {{keyTenure}} {{keySize}} {{keyShape}}
+    {{keyUse}} {{keyCondition}} {{keySale}}
+        — 7-line keylist; missing data renders as "—"
+
+  AI slots (Claude fills):
+    {{glanceHeadline}}       — e.g. "An acre, held freehold."
+    {{priceTagline}}         — short subline under price, e.g.
+                                 "Two plots · sold together"
+    {{blurb}}                — 1-sentence (~30 word) intro beside price
+    {{glanceBodyPara1}}      — first paragraph of "shortest description"
+    {{glanceBodyPara2}}      — second paragraph (or empty if not needed)
+-->
+<section class="page">
+  <div class="runhead">
+    <span>{{title}}<span class="dot"></span>Property at a glance</span>
+    <span>{{referenceNumber}}</span>
+  </div>
+  <div class="page-inner">
+    <div class="glance-hd">
+      <div>
+        <div class="eyebrow">§ I — At a Glance</div>
+        <h1>{{glanceHeadline}}</h1>
+      </div>
+      <div class="pageno">P. {{pageNumber}} / {{pageTotal}}</div>
+    </div>
+
+    <div class="price-row">
+      <div class="price-block">
+        <div class="label">Asking</div>
+        <div class="price-figure"><span class="ccy">KES</span>{{priceFormatted}}</div>
+        <div class="price-meta">{{priceTagline}}</div>
+      </div>
+      <div class="blurb">{{blurb}}</div>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <div class="label">{{fact1Label}}</div>
+        <div class="val">{{fact1Value}}<small>{{fact1Detail}}</small></div>
+      </div>
+      <div class="fact">
+        <div class="label">{{fact2Label}}</div>
+        <div class="val">{{fact2Value}}<small>{{fact2Detail}}</small></div>
+      </div>
+      <div class="fact">
+        <div class="label">{{fact3Label}}</div>
+        <div class="val">{{fact3Value}}<small>{{fact3Detail}}</small></div>
+      </div>
+      <div class="fact">
+        <div class="label">{{fact4Label}}</div>
+        <div class="val">{{fact4Value}}<small>{{fact4Detail}}</small></div>
+      </div>
+    </div>
+
+    <div class="glance-body">
+      <div>
+        <h2>The shortest description.</h2>
+        <p class="body">{{glanceBodyPara1}}</p>
+        <p class="body">{{glanceBodyPara2}}</p>
+      </div>
+      <div>
+        <h2>Key facts.</h2>
+        <ul class="keylist">
+          <li><span class="k">Location</span><span>{{keyLocation}}</span></li>
+          <li><span class="k">Tenure</span><span>{{keyTenure}}</span></li>
+          <li><span class="k">Size</span><span>{{keySize}}</span></li>
+          <li><span class="k">Shape</span><span>{{keyShape}}</span></li>
+          <li><span class="k">Use</span><span>{{keyUse}}</span></li>
+          <li><span class="k">Status</span><span>{{keyCondition}}</span></li>
+          <li><span class="k">Sale</span><span>{{keySale}}</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE & CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

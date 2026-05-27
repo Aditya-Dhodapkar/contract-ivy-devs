@@ -26,6 +26,53 @@ export interface BrochureSlots {
   closingHeadline: string;
 }
 
+/* ----------------------- Per-page slot types (new) -----------------------
+ * The new per-page template architecture splits the monolithic BrochureSlots
+ * into one type per page. Claude fills one schema per page via tool-use; the
+ * assembler interpolates those values into templates/brochure/<page>.html.
+ * The old `BrochureSlots` interface above is preserved so the React-PDF
+ * prototype keeps working during the transition.
+ * ------------------------------------------------------------------------ */
+
+export interface CoverSlots {
+  /** Short descriptor above the headline — e.g. "A One-Acre Garden Parcel". */
+  eyebrow: string;
+  /** Big serif headline. `<br/>` and `<em>` tags are allowed and encouraged
+   *  (e.g. "Rosslyn<br/><em>Lone Tree</em>"). */
+  title: string;
+  /** ~30-50 word evocative paragraph under the title. */
+  sub: string;
+}
+
+export interface GlanceSlots {
+  headline: string;     // big serif statement, <em> allowed
+  priceTagline: string; // 3-6 word subline under the price
+  blurb: string;        // ~30 word sentence beside the price
+  bodyPara1: string;    // 60-90 words
+  bodyPara2: string;    // 2-3 sentences OR empty string
+}
+
+export interface LocationSlots {
+  headline: string; // 1-2 line poetic; <em>+<br/> allowed
+  intro: string;    // ~50 words above the map
+  closing: string;  // 50-80 word bottom paragraph
+}
+
+export interface SitePlanSlots {
+  headline: string; // 4-8 words; <em> allowed
+}
+
+/** Anchor type — every page's slot type registers here. */
+export interface PageSlotSet {
+  cover: CoverSlots;
+  glance: GlanceSlots;
+  location: LocationSlots;
+  sitePlan: SitePlanSlots;
+  // feature, closing — added as each page lands
+}
+
+export type PageId = keyof PageSlotSet;
+
 export const SLOT_LABELS: Record<keyof BrochureSlots, string> = {
   coverTagline: "Cover tagline",
   introHeadline: "Introduction headline",

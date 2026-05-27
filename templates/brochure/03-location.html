@@ -1,0 +1,59 @@
+<!--
+  Page 3 — Location & neighbourhood.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{location}} {{pageNumber}} {{pageTotal}}
+    {{localityMap}}    — data-URI (or external URL) of a static map image
+                          centred on the property. Empty string if no
+                          lat/lng on the property or fetch failed; the
+                          map block then degrades to a neutral panel.
+    {{coordsLine}}     — small caption like "−1.2163°, 36.7928° · Lamu, Kenya"
+    {{mapScale}}       — like "≈ 1.5 km across"
+    {{nearbyItems}}    — pre-rendered <li> list from p.nearby[]
+
+  AI slots:
+    {{locationHeadline}} — e.g. "On the quiet side."
+    {{locationIntro}}    — ~50-word evocative paragraph above the map
+    {{locationClosing}}  — ~50-80 word two-column paragraph at the bottom
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Location &amp; neighbourhood</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner loc">
+    <div>
+      <div class="eyebrow">§ II — The Address</div>
+      <h1>{{locationHeadline}}</h1>
+      <p class="body loc-intro" style="margin-top:14px;">{{locationIntro}}</p>
+    </div>
+
+    <div class="loc-grid">
+      <div class="map-card">
+        <div class="label">Fig. 01 — Locality map</div>
+        <div class="map-frame">
+          <img class="map-img" src="{{localityMap}}" alt="Locality map" />
+          <div class="map-n">N</div>
+        </div>
+        <div class="map-meta">
+          <span>{{coordsLine}}</span>
+          <span class="scale">{{mapScale}}</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="label" style="margin-bottom:14px;">Within reach</div>
+        <ul class="nearby">
+          {{nearbyItems}}
+        </ul>
+        <p class="small" style="margin-top:18px;">
+          Distances are approximate, measured by road from the site entrance.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <p class="body" style="max-width:640px; column-count:2; column-gap:32px;">
+        {{locationClosing}}
+      </p>
+    </div>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

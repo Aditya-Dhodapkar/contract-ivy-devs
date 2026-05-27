@@ -1,0 +1,2 @@
+- need to add a feedback/bug report button and link it to supabase
+- make db
