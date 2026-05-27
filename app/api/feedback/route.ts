@@ -8,11 +8,16 @@
 //                             - Contents: read/write  (to commit screenshots)
 //   GITHUB_FEEDBACK_REPO    "owner/repo" — where issues + images land
 //
-// Image strategy: each screenshot is committed to
-// .github/feedback-images/{timestamp}-{n}-{slug}.{ext} via the Contents API.
-// The resulting raw.githubusercontent.com URL is included in the issue body.
-// Because the repo is private, only people with repo access can view the
-// images — which is exactly the right audience (us).
+// Image strategy: screenshots are committed to an ORPHAN branch named
+// `feedback-attachments` (configurable via FEEDBACK_BRANCH) — never main.
+// This keeps the main commit log clean and means devs never see the
+// "you have N commits to pull" surprise when feedback comes in. The
+// orphan branch is bootstrapped lazily on first feedback with images.
+//
+// The resulting raw.githubusercontent.com URL embeds the branch name and
+// renders inline in the issue. Because the repo is private, only people
+// with repo access can view the images — which is exactly the right
+// audience (us).
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -32,6 +37,7 @@ const CATEGORY_LABEL: Record<NonNullable<Body["category"]>, string> = {
 };
 
 const GH_API = "https://api.github.com";
+const FEEDBACK_BRANCH = process.env.FEEDBACK_BRANCH || "feedback-attachments";
 
 function slugify(s: string): string {
   return s
@@ -59,6 +65,74 @@ async function ghFetch(path: string, init: RequestInit, token: string) {
       ...(init.headers || {}),
     },
   });
+}
+
+/** Lazily create the orphan attachments branch. Idempotent: returns early
+ *  if it already exists. The branch is created with a single README commit
+ *  and NO parents — fully disconnected from main, so noise here can never
+ *  reach the working branch. */
+async function ensureFeedbackBranch(repo: string, branch: string, token: string): Promise<void> {
+  const check = await ghFetch(`/repos/${repo}/branches/${encodeURIComponent(branch)}`, {}, token);
+  if (check.ok) return;
+  if (check.status !== 404) {
+    throw new Error(`Branch existence check failed (HTTP ${check.status}).`);
+  }
+
+  // 1. README blob
+  const readme =
+    `# Feedback attachments\n\n` +
+    `This orphan branch stores screenshots attached to feedback submitted ` +
+    `via the back-office. The files are automatically committed by ` +
+    `\`/api/feedback\` and referenced from the corresponding GitHub issue ` +
+    `on this repo. Do not check out or modify this branch by hand.\n`;
+  const blobRes = await ghFetch(
+    `/repos/${repo}/git/blobs`,
+    { method: "POST", body: JSON.stringify({ content: readme, encoding: "utf-8" }) },
+    token
+  );
+  if (!blobRes.ok) throw new Error(`Bootstrap blob failed (HTTP ${blobRes.status}).`);
+  const { sha: blobSha } = (await blobRes.json()) as { sha: string };
+
+  // 2. Tree containing just that README
+  const treeRes = await ghFetch(
+    `/repos/${repo}/git/trees`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        tree: [{ path: "README.md", mode: "100644", type: "blob", sha: blobSha }],
+      }),
+    },
+    token
+  );
+  if (!treeRes.ok) throw new Error(`Bootstrap tree failed (HTTP ${treeRes.status}).`);
+  const { sha: treeSha } = (await treeRes.json()) as { sha: string };
+
+  // 3. Orphan commit (parents: [] = disconnected from main)
+  const commitRes = await ghFetch(
+    `/repos/${repo}/git/commits`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: "init feedback-attachments orphan branch",
+        tree: treeSha,
+        parents: [],
+      }),
+    },
+    token
+  );
+  if (!commitRes.ok) throw new Error(`Bootstrap commit failed (HTTP ${commitRes.status}).`);
+  const { sha: commitSha } = (await commitRes.json()) as { sha: string };
+
+  // 4. Point the ref at it
+  const refRes = await ghFetch(
+    `/repos/${repo}/git/refs`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
+    },
+    token
+  );
+  if (!refRes.ok) throw new Error(`Bootstrap ref failed (HTTP ${refRes.status}).`);
 }
 
 export async function POST(req: Request) {
@@ -94,18 +168,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "At most 6 screenshots, please." }, { status: 400 });
   }
 
-  // 1. Commit each image to the repo. Failures here are logged but do not
-  // block the issue — the report is more important than the screenshots.
+  // 1. Commit each image to the orphan attachments branch. Failures here
+  // are logged but do not block the issue — the report is more important
+  // than the screenshots. The branch is bootstrapped lazily on first use;
+  // skip the check entirely when there are no images to upload.
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const titleSlug = slugify(title);
   const imageMarkdown: string[] = [];
   const uploadErrors: string[] = [];
 
+  if (images.length > 0) {
+    try {
+      await ensureFeedbackBranch(repo, FEEDBACK_BRANCH, token);
+    } catch (e) {
+      uploadErrors.push(`branch bootstrap: ${(e as Error).message}`);
+      // If we can't ensure the branch, fall back to skipping image upload
+      // entirely rather than half-committing somewhere unexpected.
+      images.length = 0;
+    }
+  }
+
   for (let i = 0; i < images.length; i++) {
     const img = images[i];
     if (!img?.base64) continue;
     const ext = extFromName(img.name || "", img.type || "");
-    const path = `.github/feedback-images/${ts}-${i + 1}-${titleSlug}.${ext}`;
+    const path = `feedback-images/${ts}-${i + 1}-${titleSlug}.${ext}`;
     try {
       const res = await ghFetch(
         `/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`,
@@ -114,6 +201,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             message: `feedback: attach ${path.split("/").pop()}`,
             content: img.base64,
+            branch: FEEDBACK_BRANCH,
           }),
         },
         token
