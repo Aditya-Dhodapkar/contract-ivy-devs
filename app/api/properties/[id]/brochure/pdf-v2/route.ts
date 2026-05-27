@@ -19,7 +19,7 @@ import { can } from "@/lib/roles";
 import { getProperty } from "@/lib/repo/properties";
 import { pagesFor } from "@/lib/brochure/pages";
 import { assembleBrochureHtml } from "@/lib/brochure/assembler";
-import { draftCoverCopy, draftGlanceCopy, draftLocationCopy, draftSitePlanCopy } from "@/lib/brochure/claude";
+import { draftCoverCopy, draftGlanceCopy, draftLocationCopy, draftSitePlanCopy, draftFeatureCopy, draftClosingCopy } from "@/lib/brochure/claude";
 import type { PageSlotSet } from "@/lib/brochure/types";
 
 /** Read a local image from /public and inline as a data URI. Puppeteer's
@@ -122,13 +122,18 @@ export async function POST(req: Request, { params }: Params) {
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const pages = pagesFor(p);
-  const [logo, coverHero, localityMap, floorPlan] = await Promise.all([
+  // Photos[0] is the cover hero; the gallery page consumes photos[1..5].
+  const galleryUrls = pages.includes("feature")
+    ? (p.photos ?? []).slice(1, 6)
+    : [];
+  const [logo, coverHero, localityMap, floorPlan, ...galleryPhotos] = await Promise.all([
     localImageDataUri("sansi-logo.jpg"),
     resolvePhoto(p.photos?.[0]),
     pages.includes("location")
       ? fetchLocalityMap(p.latitude, p.longitude)
       : Promise.resolve(""),
     pages.includes("sitePlan") ? resolvePhoto(p.floorPlan) : Promise.resolve(""),
+    ...galleryUrls.map((u) => resolvePhoto(u)),
   ]);
 
   // Draft every included page's slots in parallel.
@@ -139,7 +144,8 @@ export async function POST(req: Request, { params }: Params) {
       else if (page === "glance") aiSlots.glance = await draftGlanceCopy(p);
       else if (page === "location") aiSlots.location = await draftLocationCopy(p);
       else if (page === "sitePlan") aiSlots.sitePlan = await draftSitePlanCopy(p);
-      // future pages added here as they land
+      else if (page === "feature") aiSlots.feature = await draftFeatureCopy(p);
+      else if (page === "closing") aiSlots.closing = await draftClosingCopy(p);
     })
   );
 
@@ -147,7 +153,7 @@ export async function POST(req: Request, { params }: Params) {
     property: p,
     aiSlots,
     pages,
-    images: { logo, coverHero, localityMap, floorPlan },
+    images: { logo, coverHero, localityMap, floorPlan, galleryPhotos: galleryPhotos.filter(Boolean) },
   });
 
   // Launch headless Chromium and render.

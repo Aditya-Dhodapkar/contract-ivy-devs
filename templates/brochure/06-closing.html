@@ -1,0 +1,69 @@
+<!--
+  Page 6 — Terms & Enquiries (closing).
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{termsParas}}        — AI terms rendered as one or more <p> tags.
+
+  AI slots:
+    {{closingHeadline}}   — 4-8 words; <em> allowed.
+
+  Process steps, contact card, and disclaim are all static — same on every
+  brochure, so they live in the template, not in data.
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Terms &amp; enquiries</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner closing">
+    <div>
+      <div class="eyebrow">§ V — Terms &amp; Enquiries</div>
+      <h1>{{closingHeadline}}</h1>
+    </div>
+
+    <div>
+      <div class="terms-grid">
+        <div>
+          <h2>The terms.</h2>
+          {{termsParas}}
+        </div>
+        <div>
+          <h2>Process.</h2>
+          <ul class="keylist">
+            <li><span class="k">Step 01</span><span>Written expression of interest &amp; introduction</span></li>
+            <li><span class="k">Step 02</span><span>NDA, brochure pack &amp; private viewing</span></li>
+            <li><span class="k">Step 03</span><span>Title search &amp; surveyor's confirmation</span></li>
+            <li><span class="k">Step 04</span><span>Offer, sale agreement &amp; deposit</span></li>
+            <li><span class="k">Step 05</span><span>Completion &amp; transfer of titles</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="contact-card">
+      <div>
+        <div class="eyebrow">Enquiries</div>
+        <h3>For private viewing,<br/>please <em>get in touch</em>.</h3>
+      </div>
+      <div class="info">
+        <span class="label2">Sole agent</span>
+        <b>Sansi Africa</b><br/>
+        Nairobi, Kenya
+        <span class="label2">Direct</span>
+        +254 780 700 567<br/>
+        sansi@sansi.africa &nbsp;·&nbsp; info@sansi.africa
+        <span class="label2">Reference</span>
+        File no. {{referenceNumber}}
+      </div>
+    </div>
+
+    <p class="disclaim">
+      This brochure is issued for information only and does not constitute,
+      nor form part of, any offer or contract. All particulars — including
+      areas, dimensions, distances and tenure — are given in good faith and
+      believed correct, but are not warranted; intending purchasers must
+      satisfy themselves by inspection and independent enquiry. Photography
+      is illustrative. Maps and site plans are indicative and not to survey
+      accuracy. © {{currentYear}} Sansi Africa. All rights reserved.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

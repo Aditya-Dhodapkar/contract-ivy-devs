@@ -1,179 +1,97 @@
 "use client";
 
-// Client-side editor for brochure slots. On mount, requests Claude to draft
-// the copy. User edits in-place. On submit, downloads the PDF.
+// Brochure generator. The new per-page pipeline (templates/brochure/*.html +
+// /api/properties/[id]/brochure/pdf-v2) generates every slot internally on
+// the server. From this UI you just press the button and get the PDF.
+//
+// A per-page editable preview (edit headlines/intros before render) is a
+// follow-up — for now, regeneration is fast enough (~10-15s) that hitting
+// the button again gives you a fresh draft if you don't like the first one.
 
-import { useEffect, useState } from "react";
-import type { BrochureSlots } from "@/lib/brochure/types";
-import { SLOT_LABELS } from "@/lib/brochure/types";
+import { useState } from "react";
 
-type Status = "drafting" | "ready" | "error" | "rendering";
-
-const field =
-  "w-full border border-hairline/20 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold";
-const labelText = "mb-2 block text-eyebrow uppercase text-ink";
+type Status = "idle" | "rendering" | "error" | "done";
 
 export function BrochureEditor({ propertyId }: { propertyId: string }) {
-  const [status, setStatus] = useState<Status>("drafting");
-  const [slots, setSlots] = useState<BrochureSlots | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
+  const [lastFilename, setLastFilename] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setError("");
-      const res = await fetch(`/api/properties/${propertyId}/brochure/draft`, { method: "POST" });
-      if (cancelled) return;
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(j.error || "Could not draft brochure copy.");
-        setStatus("error");
-        return;
-      }
-      const { slots } = await res.json();
-      setSlots(slots);
-      setStatus("ready");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [propertyId]);
-
-  async function regenerate() {
-    setStatus("drafting");
-    setSlots(null);
-    setError("");
-    const res = await fetch(`/api/properties/${propertyId}/brochure/draft`, { method: "POST" });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error || "Could not regenerate.");
-      setStatus("error");
-      return;
-    }
-    const { slots } = await res.json();
-    setSlots(slots);
-    setStatus("ready");
-  }
-
-  async function downloadPdf() {
-    if (!slots) return;
+  async function generatePdf() {
     setStatus("rendering");
     setError("");
-    const res = await fetch(`/api/properties/${propertyId}/brochure/pdf`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ slots }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error || "Could not render PDF.");
-      setStatus("ready");
-      return;
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/brochure/pdf-v2`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `Generation failed (HTTP ${res.status}).`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("content-disposition") || "";
+      const m = /filename="([^"]+)"/.exec(cd);
+      const filename = m?.[1] || "brochure.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setLastFilename(filename);
+      setStatus("done");
+    } catch (e) {
+      setError((e as Error).message);
+      setStatus("error");
     }
-    // Pull the blob and let the browser save it.
-    const blob = await res.blob();
-    const cd = res.headers.get("content-disposition") || "";
-    const m = /filename="([^"]+)"/.exec(cd);
-    const filename = m?.[1] || "brochure.pdf";
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    setStatus("ready");
   }
 
-  function update<K extends keyof BrochureSlots>(k: K, v: string) {
-    setSlots((s) => (s ? { ...s, [k]: v } : s));
-  }
-
-  if (status === "drafting" && !slots) {
-    return (
-      <div className="border border-hairline/15 bg-paper p-8 text-sm text-ink-mute">
-        Drafting brochure copy with Claude… (this takes ~10 seconds)
-      </div>
-    );
-  }
-  if (status === "error" && !slots) {
-    return (
-      <div className="border border-red-200 bg-red-50 p-8 text-sm">
-        <p className="font-medium text-red-700">{error}</p>
-        <button
-          onClick={regenerate}
-          className="mt-4 border border-red-300 px-3 py-2 text-eyebrow uppercase text-red-700 hover:bg-red-100"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-  if (!slots) return null;
-
-  const orderedKeys: (keyof BrochureSlots)[] = [
-    "coverTagline",
-    "introHeadline",
-    "introLede",
-    "propertyHeadline",
-    "landHeadline",
-    "featureHeadline",
-    "featureBody",
-    "closingHeadline",
-  ];
+  const busy = status === "rendering";
 
   return (
-    <div className="space-y-7">
-      <div className="flex items-center justify-between border-b border-hairline/15 pb-3">
-        <p className="text-sm text-ink-mute">Editorial copy — review &amp; edit</p>
-        <button
-          onClick={regenerate}
-          disabled={status === "drafting"}
-          className="text-eyebrow uppercase text-gold-deep hover:underline disabled:opacity-50"
-        >
-          {status === "drafting" ? "Drafting…" : "Re-draft with Claude"}
-        </button>
-      </div>
-
-      {orderedKeys.map((k) => {
-        const multiline = k === "introLede" || k === "featureBody";
-        return (
-          <label key={k} className="block">
-            <span className={labelText}>{SLOT_LABELS[k]}</span>
-            {multiline ? (
-              <textarea
-                value={slots[k]}
-                onChange={(e) => update(k, e.target.value)}
-                rows={4}
-                className={field}
-              />
-            ) : (
-              <input
-                type="text"
-                value={slots[k]}
-                onChange={(e) => update(k, e.target.value)}
-                className={field}
-              />
-            )}
-          </label>
-        );
-      })}
-
-      {error && <p className="text-sm text-red-700">{error}</p>}
-
-      <div className="flex items-center gap-3 border-t border-hairline/15 pt-5">
-        <button
-          onClick={downloadPdf}
-          disabled={status === "rendering"}
-          className="bg-gold-deep px-6 py-3 text-eyebrow uppercase text-paper hover:bg-ink disabled:opacity-50"
-        >
-          {status === "rendering" ? "Rendering PDF…" : "Download PDF"}
-        </button>
-        <p className="text-xs text-ash">
-          The file downloads to your computer. Nothing is saved on the server.
+    <div className="space-y-6">
+      <div className="border border-hairline/15 bg-paper p-6">
+        <p className="text-eyebrow uppercase text-ash">What this does</p>
+        <ul className="mt-3 space-y-2 text-sm text-ink-soft">
+          <li>· Picks the pages this property qualifies for (cover, glance, location, site plan, gallery, terms).</li>
+          <li>· Asks Claude to draft the editorial copy for each page in parallel.</li>
+          <li>· Pulls in your photos, floor plan, locality map, and particulars.</li>
+          <li>· Renders the whole thing to a six-page A4 PDF.</li>
+        </ul>
+        <p className="mt-4 text-xs text-ash">
+          Generation takes 10–20 seconds. Nothing is saved on the server — the
+          file streams straight to your downloads. Hit the button again to get
+          a fresh draft.
         </p>
       </div>
+
+      <div className="flex flex-wrap items-center gap-4 border-t border-hairline/15 pt-5">
+        <button
+          onClick={generatePdf}
+          disabled={busy}
+          className="bg-gold-deep px-6 py-3 text-eyebrow uppercase text-paper hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? "Generating PDF…" : status === "done" ? "Generate again" : "Generate brochure"}
+        </button>
+        {busy && (
+          <p className="text-xs text-ash">
+            Drafting copy &amp; rendering — please wait.
+          </p>
+        )}
+        {status === "done" && !busy && (
+          <p className="text-xs text-ink-soft">
+            Downloaded <span className="font-mono text-ink">{lastFilename}</span>.
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <div className="border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

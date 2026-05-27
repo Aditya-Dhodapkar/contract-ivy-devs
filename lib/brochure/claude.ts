@@ -8,7 +8,9 @@ import { COVER_SYSTEM_PROMPT, buildCoverUserPrompt, COVER_TOOL } from "./prompts
 import { GLANCE_SYSTEM_PROMPT, buildGlanceUserPrompt, GLANCE_TOOL } from "./prompts/glance";
 import { LOCATION_SYSTEM_PROMPT, buildLocationUserPrompt, LOCATION_TOOL } from "./prompts/location";
 import { SITE_PLAN_SYSTEM_PROMPT, buildSitePlanUserPrompt, SITE_PLAN_TOOL } from "./prompts/site-plan";
-import type { BrochureSlots, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots } from "./types";
+import { FEATURE_SYSTEM_PROMPT, buildFeatureUserPrompt, FEATURE_TOOL } from "./prompts/feature";
+import { CLOSING_SYSTEM_PROMPT, buildClosingUserPrompt, CLOSING_TOOL } from "./prompts/closing";
+import type { BrochureSlots, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots } from "./types";
 import type { PropertyRecord } from "@/lib/repo/properties";
 
 let cached: Anthropic | null = null;
@@ -123,6 +125,40 @@ export async function draftSitePlanCopy(p: PropertyRecord): Promise<SitePlanSlot
     throw new Error("Claude did not return site-plan copy in the expected format.");
   }
   return block.input as SitePlanSlots;
+}
+
+export async function draftFeatureCopy(p: PropertyRecord): Promise<FeatureSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 512,
+    temperature: 0.4,
+    system: FEATURE_SYSTEM_PROMPT,
+    tools: [FEATURE_TOOL],
+    tool_choice: { type: "tool", name: FEATURE_TOOL.name },
+    messages: [{ role: "user", content: buildFeatureUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== FEATURE_TOOL.name) {
+    throw new Error("Claude did not return feature copy in the expected format.");
+  }
+  return block.input as FeatureSlots;
+}
+
+export async function draftClosingCopy(p: PropertyRecord): Promise<ClosingSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 768,
+    temperature: 0.4,
+    system: CLOSING_SYSTEM_PROMPT,
+    tools: [CLOSING_TOOL],
+    tool_choice: { type: "tool", name: CLOSING_TOOL.name },
+    messages: [{ role: "user", content: buildClosingUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== CLOSING_TOOL.name) {
+    throw new Error("Claude did not return closing copy in the expected format.");
+  }
+  return block.input as ClosingSlots;
 }
 
 export async function draftBrochureCopy(p: PropertyRecord): Promise<BrochureSlots> {

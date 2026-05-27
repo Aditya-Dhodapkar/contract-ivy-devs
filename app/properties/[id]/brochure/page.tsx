@@ -36,9 +36,9 @@ export default async function BrochurePage({
           <span className="text-ink-mute">· {p.referenceNumber}</span>
         </h1>
         <p className="mt-2 text-sm text-ink-mute">
-          Claude has drafted the editorial copy below. Review and tweak any
-          line, then download the PDF. Nothing leaves your computer until you
-          press download.
+          Press generate and we'll draft the copy, pull in the photos and map,
+          and render a six-page PDF for you. Don't like a phrasing? Press
+          generate again — Claude redrafts every time.
         </p>
 
         <div className="mt-10">

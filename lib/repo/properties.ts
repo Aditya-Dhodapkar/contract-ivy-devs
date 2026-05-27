@@ -42,6 +42,9 @@ export interface PropertyRecord {
   amenities?: string[];
   nearby?: { place: string; distance: string; description?: string }[];
   photos?: string[];
+  /** Optional caption per photo, indexed alongside `photos`. Empty/missing
+   *  entries are fine — the gallery tile just renders without an overlay. */
+  photoCaptions?: string[];
   floorPlan?: string;
   assignedAgentId?: string;
   sellerId?: string;
@@ -113,6 +116,7 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     amenities: rec.amenities,
     nearby: rec.nearby,
     photos: rec.photos,
+    photo_captions: rec.photoCaptions,
     floor_plan: rec.floorPlan,
     assigned_agent_id: rec.assignedAgentId,
     seller_id: rec.sellerId,
@@ -162,6 +166,7 @@ function fromRow(r: Row): PropertyRecord {
     amenities: (r.amenities as string[]) ?? undefined,
     nearby: (r.nearby as PropertyRecord["nearby"]) ?? undefined,
     photos: (r.photos as string[]) ?? undefined,
+    photoCaptions: (r.photo_captions as string[]) ?? undefined,
     floorPlan: (r.floor_plan as string) ?? undefined,
     assignedAgentId: (r.assigned_agent_id as string) ?? undefined,
     sellerId: (r.seller_id as string) ?? undefined,

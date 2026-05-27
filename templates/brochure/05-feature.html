@@ -1,0 +1,33 @@
+<!--
+  Page 5 — Gallery / "On the ground".
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{galleryGridClass}}  — e.g. "count-3" / "count-5"; drives the layout variant.
+    {{galleryTiles}}      — pre-rendered <div class="ph">…</div> tiles with
+                             background-image data URI + data-cap from assembler.
+
+  AI slots:
+    {{featureHeadline}}   — ≤8 words; <em> allowed.
+    {{featureIntro}}      — 30-60 word editor's-note paragraph.
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Photographs</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner gallery">
+    <div>
+      <div class="eyebrow">§ IV — On the ground</div>
+      <h1>{{featureHeadline}}</h1>
+      <p class="body gallery-intro">{{featureIntro}}</p>
+    </div>
+
+    <div class="gallery-grid {{galleryGridClass}}">
+      {{galleryTiles}}
+    </div>
+
+    <p class="small" style="margin-top:18px;">
+      Additional photography available on request. Drone and twilight imagery
+      commissioned for shortlisted buyers.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

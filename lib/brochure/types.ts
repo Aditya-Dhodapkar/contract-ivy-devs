@@ -62,13 +62,24 @@ export interface SitePlanSlots {
   headline: string; // 4-8 words; <em> allowed
 }
 
+export interface FeatureSlots {
+  headline: string; // ≤8 words; <em> allowed
+  intro: string;    // 30-60 words, property-aware editorial
+}
+
+export interface ClosingSlots {
+  headline: string; // 4-8 words; <em> allowed
+  terms: string;    // 60-100 words; \n\n for paragraph breaks
+}
+
 /** Anchor type — every page's slot type registers here. */
 export interface PageSlotSet {
   cover: CoverSlots;
   glance: GlanceSlots;
   location: LocationSlots;
   sitePlan: SitePlanSlots;
-  // feature, closing — added as each page lands
+  feature: FeatureSlots;
+  closing: ClosingSlots;
 }
 
 export type PageId = keyof PageSlotSet;

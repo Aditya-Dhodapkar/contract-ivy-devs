@@ -10,7 +10,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { PropertyRecord, PropertyType } from "@/lib/repo/properties";
-import type { PageSlotSet, PageId, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots } from "./types";
+import type { PageSlotSet, PageId, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots } from "./types";
 
 /* ----- helpers used by per-page slot mappers ----- */
 
@@ -119,7 +119,34 @@ export interface AssemblyInput {
     coverHero: string;   // primary photo for the cover background
     localityMap: string; // static-map image for the location page (or "")
     floorPlan: string;   // resolved site/floor plan image for page 4 (or "")
+    galleryPhotos: string[]; // resolved photos[1..N] for page 5 gallery
   };
+}
+
+/** Predefined tile spans per gallery photo count. Spans are tuned so each
+ *  layout fills the grid without empty cells. Returned as inline-style
+ *  fragments to drop into each tile's `style` attribute. */
+function gallerySpans(count: number): string[] {
+  switch (count) {
+    case 2:
+      return ["", ""];
+    case 3:
+      return [
+        "grid-column: span 4; grid-row: span 3;",
+        "grid-column: span 2; grid-row: span 2;",
+        "grid-column: span 2; grid-row: span 1;",
+      ];
+    case 4:
+      return ["", "", "", ""];
+    default: // 5+: reference editorial mosaic
+      return [
+        "grid-column: span 4; grid-row: span 3;",
+        "grid-column: span 2; grid-row: span 2;",
+        "grid-column: span 2; grid-row: span 1;",
+        "grid-column: span 3; grid-row: span 2;",
+        "grid-column: span 3; grid-row: span 2;",
+      ];
+  }
 }
 
 /** Builds the flat {{key}} → value map for one page's interpolation pass.
@@ -133,6 +160,7 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
     referenceNumber: p.referenceNumber ?? "—",
     location: [p.city, p.country].filter(Boolean).join(", ") || "—",
     coverDate: new Date().toLocaleString("en-GB", { month: "long", year: "numeric" }),
+    currentYear: String(new Date().getFullYear()),
     logoUrl: images.logo,
     pageNumber: String(pageNumber).padStart(2, "0"),
     pageTotal: String(pageTotal).padStart(2, "0"),
@@ -247,6 +275,59 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
         particularsRows,
       };
     }
+    case "feature": {
+      const f = (aiSlots.feature ?? {}) as Partial<FeatureSlots>;
+      // Take up to 5 gallery photos (the route already excluded the cover).
+      // Captions are aligned to the original `photos` array via index — since
+      // gallery starts at photos[1], caption indices shift by +1.
+      const photoUrls = images.galleryPhotos.slice(0, 5);
+      const count = photoUrls.length;
+      const layoutCount = count >= 5 ? 5 : count; // 2/3/4/5 → respective class
+      const spans = gallerySpans(count);
+      const captions = p.photoCaptions ?? [];
+      const galleryTiles = photoUrls
+        .map((url, i) => {
+          // photos[0] = cover; gallery is photos[1..], so caption index = i + 1
+          const cap = (captions[i + 1] ?? "").trim();
+          const num = String(i + 1).padStart(2, "0");
+          // Caption format mirrors the reference: "01 — Caption text". When
+          // no caption is set we leave data-cap empty and the overlay hides.
+          const dataCap = cap ? `${num} — ${cap}` : "";
+          const style = [
+            `background-image:url('${url}')`,
+            spans[i] || "",
+          ]
+            .filter(Boolean)
+            .join("; ");
+          return `<div class="ph" data-cap="${escapeHtml(dataCap)}" style="${style}"></div>`;
+        })
+        .join("\n      ");
+
+      return {
+        ...base,
+        featureHeadline: f.headline ?? "",
+        featureIntro: f.intro ?? "",
+        galleryGridClass: `count-${layoutCount}`,
+        galleryTiles,
+      };
+    }
+    case "closing": {
+      const c = (aiSlots.closing ?? {}) as Partial<ClosingSlots>;
+      // Split AI terms on blank lines into separate <p> tags so paragraph
+      // breaks render. Single-paragraph output stays a single <p>.
+      const termsParas = (c.terms ?? "")
+        .split(/\n\s*\n/)
+        .map((para) => para.trim())
+        .filter(Boolean)
+        .map((para) => `<p>${escapeHtml(para)}</p>`)
+        .join("\n          ") ||
+        `<p>Terms available on application.</p>`;
+      return {
+        ...base,
+        closingHeadline: c.headline ?? "",
+        termsParas,
+      };
+    }
     case "glance": {
       const g = (aiSlots.glance ?? {}) as Partial<GlanceSlots>;
       const facts = factsForType(p);
@@ -330,5 +411,9 @@ function pageFilename(page: PageId): string {
       return "03-location";
     case "sitePlan":
       return "04-site-plan";
+    case "feature":
+      return "05-feature";
+    case "closing":
+      return "06-closing";
   }
 }

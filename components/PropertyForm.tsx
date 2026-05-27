@@ -81,6 +81,16 @@ export function PropertyForm({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState<string[]>(existing?.photos ?? []);
+  // Captions tracked URL→caption so reorder/remove stays trivial. Persisted
+  // as an array indexed alongside `photos` at submit time.
+  const [captionByUrl, setCaptionByUrl] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    (existing?.photos ?? []).forEach((url, i) => {
+      const cap = existing?.photoCaptions?.[i];
+      if (cap) m[url] = cap;
+    });
+    return m;
+  });
   const [uploading, setUploading] = useState(0);
   const [floorPlan, setFloorPlan] = useState<string>(existing?.floorPlan ?? "");
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
@@ -175,6 +185,22 @@ export function PropertyForm({
 
   function removePhoto(url: string) {
     setPhotos((curr) => curr.filter((u) => u !== url));
+    setCaptionByUrl((curr) => {
+      if (!(url in curr)) return curr;
+      const { [url]: _drop, ...rest } = curr;
+      return rest;
+    });
+  }
+
+  function setCaption(url: string, caption: string) {
+    setCaptionByUrl((curr) => {
+      if (!caption) {
+        if (!(url in curr)) return curr;
+        const { [url]: _drop, ...rest } = curr;
+        return rest;
+      }
+      return { ...curr, [url]: caption };
+    });
   }
 
   async function uploadFloorPlan(file: File | null | undefined) {
@@ -251,6 +277,7 @@ export function PropertyForm({
         .map(normRow)
         .filter((r) => r.place.trim() || r.distance.trim() || r.description.trim()),
       photos,
+      photoCaptions: photos.map((u) => captionByUrl[u] || ""),
     };
     if (showAgentPicker && assignedAgentId) {
       payload.assignedAgentId = assignedAgentId;
@@ -602,13 +629,24 @@ export function PropertyForm({
                       ✕
                     </button>
                   </div>
+                  <div className="border-t border-hairline/15 px-2 py-1.5">
+                    <input
+                      type="text"
+                      value={captionByUrl[url] ?? ""}
+                      onChange={(e) => setCaption(url, e.target.value)}
+                      placeholder={isPrimary ? "Caption (cover — unused)" : "Caption (optional)"}
+                      disabled={isPrimary}
+                      className="w-full bg-transparent text-[11px] text-ink placeholder:text-ash focus:outline-none disabled:text-ash"
+                      maxLength={80}
+                    />
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
         <p className="mt-2 text-xs text-ash">
-          The primary photo (★) is shown on the website and on the brochure cover. Tap ☆ on any other photo to make it the primary. Use ← → to reorder, ✕ to remove.
+          The primary photo (★) is shown on the website and on the brochure cover. Tap ☆ on any other photo to make it the primary. Use ← → to reorder, ✕ to remove. Captions are optional — when set, they appear as overlays on the brochure gallery page.
         </p>
       </div>
 

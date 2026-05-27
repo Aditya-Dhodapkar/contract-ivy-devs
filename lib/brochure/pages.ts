@@ -24,7 +24,11 @@ export function pagesFor(p: PropertyRecord): PageId[] {
   if (p.showPlotOnBrochure !== false && (p.floorPlan || hasAnyParticular)) {
     included.push("sitePlan");
   }
-  // Future pages:
-  // included.push("feature", "closing");
+  // Feature / gallery page: include when there's enough photography to make
+  // a page out of. photos[0] is the cover hero, so we need at least 2 more
+  // photos beyond it (3 total) to justify the page.
+  if ((p.photos?.length ?? 0) >= 3) included.push("feature");
+  // Closing page is always last — no opt-out.
+  included.push("closing");
   return included;
 }
