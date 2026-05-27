@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { FeedbackButton } from "@/components/FeedbackButton";
 
 export async function Header({ back }: { back?: { href: string; label: string } }) {
   const user = await getSession();
@@ -45,6 +46,7 @@ export async function Header({ back }: { back?: { href: string; label: string } 
                 Sign out
               </button>
             </form>
+            <FeedbackButton />
           </div>
         </div>
         <div className="h-px bg-gold/30" aria-hidden />

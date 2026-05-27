@@ -118,7 +118,7 @@ The brief's two phases:
 | AI | **Anthropic Claude (`claude-sonnet-4-5`)** | Used for brochure copy + (eventually) Phase 2 reply drafts |
 | WhatsApp | **WhatsApp Business Cloud API** via Meta | Long lead time — see §9 |
 | Email | **Zoho Mail / CRM / Campaigns** | All under client's account; Phase 2 |
-| PDF rendering | **Open** — currently using `@react-pdf/renderer` for an in-progress prototype, planning to switch to Puppeteer (see §10) | |
+| PDF rendering | **Puppeteer (headless Chromium) + per-page HTML templates** | See §10. Legacy `@react-pdf/renderer` prototype still in the tree but unused; tear it out when convenient. |
 | Image upload | Local FS in dev (`public/uploads/`), Supabase Storage in prod | Adapter pattern, env-toggled |
 
 ### Why custom auth, not Supabase Auth
@@ -178,9 +178,16 @@ run against a live Supabase project.** No Supabase project has been
 provisioned yet. The first deploy IS the integration test. Track this
 as deliverable #123 (still 🟡).
 
-A second migration `migrations/002_brochure_fields.sql` was added later
-for facing direction + plot dimensions + brochure toggles. Apply both
-files in order.
+Migrations have accumulated as the brochure pipeline grew. Apply in order:
+
+| File | Adds |
+|---|---|
+| `001_init.sql` | full base schema (users, contacts, properties, property_documents, leads) |
+| `002_brochure_fields.sql` | facing direction, plot dimensions, brochure toggles |
+| `003_brochure_glance_fields.sql` | tenure, shape, site condition, sale terms |
+| `004_property_coords.sql` | latitude, longitude (for locality map) |
+| `005_brochure_site_plan_fields.sql` | topography, boundary, services |
+| `006_brochure_photo_captions.sql` | `photo_captions text[]` aligned with `photos[]` |
 
 ---
 
@@ -242,6 +249,9 @@ Routes:
 
 ### Accounts she must create under her own identity + billing
 - **Anthropic Claude API key** ✅ ADDED by the dev to `.env`
+- **Mapbox public token** ✅ ADDED by the dev to `.env` as `MAPBOX_TOKEN`
+  (default public token — fine for dev; for prod, restrict to domain or
+  use a secret token)
 - **Supabase project** (Postgres + Storage) — NOT YET
 - **Zoho** account (CRM + Mail + Campaigns) — NOT YET. CRM is free tier.
   Zoho Mail is paid (~$1/user/month) and needs DNS verification on
@@ -254,9 +264,8 @@ Routes:
   processing on our end)
 
 ### Brand assets needed
-- **Logo** — exists in `kenya/netlify/assets/sansi-logo.jpg`. Needs to be
-  copied to `backoffice/public/sansi-logo.jpg` so the brochure cover
-  picks it up. Has not been done yet.
+- **Logo** — ✅ copied to `backoffice/public/sansi-logo.jpg`; the brochure
+  cover picks it up automatically.
 - **Brochure design template** — reference brochure exists at
   `kenya/netlify/index.html` (and the stripped version at
   `kenya/netlify/stripped-brochure.html`). See §10.
@@ -288,10 +297,11 @@ case the dev relationship ends.
 
 ---
 
-## 10. The brochure generator (current sprint)
+## 10. The brochure generator
 
-**Status: in flight.** This is the most active piece of work as of the
-handoff point.
+**Status: working end-to-end.** 6-page PDF, on-demand, ~10–20 seconds per
+render. Latest sprint (May 21–27 2026) took it from a half-broken
+React-PDF prototype to a production-shaped Puppeteer pipeline.
 
 ### What she wants
 
@@ -312,376 +322,201 @@ on 2026-05-21):
   - Map location — can be hidden when the seller wants location withheld
   - Plot diagram — only meaningful for plots with dimensions (not apartments)
 
-### What we've built so far
+### What it does
 
-**Permission added.** `generateBrochure: true` for Owner, Assistant, GM;
-`false` for Agent (per client decision).
+From her brief: a "Create brochure" button on each property detail page →
+one click → a polished 6-page A4 PDF generated from the property data
++ photos. No need for the property to be published. The PDF streams to
+the browser; nothing is stored server-side.
 
-**Form fields added** (already shipped, see `migrations/002_brochure_fields.sql`):
-- `facingDirection` (N / NE / E / SE / S / SW / W / NW)
-- `plotWidthMeters` and `plotLengthMeters` (numerics, for drawing the
-  plot diagram)
-- `showMapOnBrochure` (boolean, default true)
-- `showPlotOnBrochure` (boolean, default true)
-- Amenities chip list expanded with: Inverter, Fireplace, Wine cellar,
-  Reception room, Guest house
+### Architecture (what shipped)
 
-**The first generator (a prototype, will likely be replaced):**
+**Per-page HTML templates + Puppeteer + Claude tool-use for editorial copy.**
+Claude never sees the HTML or picks layout — it produces tiny JSON blobs
+of editorial copy. Layout is deterministic.
 
-We built a `@react-pdf/renderer` implementation:
-- `lib/brochure/types.ts` — slot type definitions (8 slots)
-- `lib/brochure/prompt.ts` — Claude system prompt + few-shot examples
-- `lib/brochure/claude.ts` — Anthropic SDK wrapper (tool-use, low temp)
-- `lib/brochure/template.tsx` — full PDF template, 7 pages, hand-ported
-  from the reference design
-- `app/api/properties/[id]/brochure/draft/route.ts` — Claude → slots JSON
-- `app/api/properties/[id]/brochure/pdf/route.ts` — slots + property →
-  streamed PDF download
-- `app/properties/[id]/brochure/page.tsx` — preview/edit UI
-- `components/BrochureEditor.tsx` — client-side editor for the 8 slots
-- "Create brochure" button wired into `components/PropertyControls.tsx`
+```
+property data + photos
+   ↓
+pagesFor(p)            decides which of the 6 pages this property gets
+   ↓
+in parallel:
+   ├── resolve images to data URIs (cover, gallery, floor plan)
+   ├── fetch Mapbox locality map → data URI (if coords set)
+   └── 6 × Claude API calls → per-page slot JSON
+   ↓
+assembler interpolates {{slot}} placeholders into per-page HTML
+   ↓
+wrap pages in _shell.html
+   ↓
+Puppeteer headless Chromium → A4 PDF
+   ↓
+stream as attachment
+```
 
-End-to-end smoke test passed. Claude produces good editorial copy.
-PDF renders (~16 KB, valid `%PDF`).
+### The 6 pages, what they show, what's data vs. AI
 
-**The catch:** the user looked at the rendered PDF and decided the visual
-fidelity to the reference brochure was insufficient. Fonts in particular —
-we couldn't find working Google Fonts CDN URLs for Cormorant Garamond /
-JetBrains Mono static TTFs, so we fell back to react-pdf's built-in
-`Times-Roman` + `Courier`. Lost the editorial flavour.
+| # | Page | Inclusion rule | Data slots | AI slots |
+|---|---|---|---|---|
+| 1 | Cover | always | cover hero photo, ref no, location, current date | `{ eyebrow, title, sub }` (3) |
+| 2 | At a glance | always | price, type-aware 4-fact block (beds/baths/built/plot/tenure/etc.), keylist (location/tenure/size/shape/use/condition/sale) | `{ headline, priceTagline, blurb, bodyPara1, bodyPara2 }` (5) |
+| 3 | Location | `city` set & `showMapOnBrochure ≠ false` | Mapbox static map (outdoors-v12 + filter), coords line, nearby places list w/ description, scale | `{ headline, intro, closing }` (3) |
+| 4 | Site plan | `showPlotOnBrochure ≠ false` & (floor plan OR any particular set) | uploaded floor plan PNG, particulars table (address, tenure, plot, built area, configuration, shape, topography, boundary, services, use, sale) | `{ headline }` (1) |
+| 5 | Gallery | `photos.length ≥ 3` | photos[1..5] with adaptive grid layout (count-2/3/4/5), per-photo captions | `{ headline, intro }` (2) |
+| 6 | Closing | always | static 5-step process, contact card (Sansi + phone + emails), ref no, current year | `{ headline, terms }` (2) |
 
-### The pivot: HTML template + Puppeteer
+A bare-bones property (just title, price, city) renders a clean 3-page
+PDF (cover + glance + closing). As more fields fill in, more pages
+qualify.
 
-We agreed to swap the rendering pipeline to **HTML-string-template +
-Puppeteer (or similar)**. The reference HTML becomes the literal
-template — no re-implementation in `@react-pdf` components.
-
-Why: the reference brochure at `kenya/netlify/index.html` is a
-**designer-built 6-page brochure** with full Cormorant Garamond fonts
-loaded via Google Fonts, real SVG site plan, photo grid, custom
-typography for every section. Re-implementing it in `@react-pdf` loses
-fidelity.
-
-### What's been done toward the pivot
-
-- `kenya/netlify/stripped-brochure.html` — the reference HTML with:
-  - React/Babel/`tweaks-panel.jsx` scripts removed
-  - `data-screen-label` attributes removed
-  - **~15 slot positions** templated with `{{handlebars}}` markers:
-    - `{{title}}`, `{{referenceNumber}}`, `{{location}}`, `{{price}}`,
-      `{{coverDate}}`, `{{coverEyebrow}}`, `{{coverTitle}}`,
-      `{{coverTagline}}`
-    - `{{glanceHeadline}}`, `{{glanceSubhead}}`, `{{keyFactsLabel}}`
-    - `{{locationHeadline}}`, `{{landHeadline}}`, `{{featureHeadline}}`,
-      `{{closingHeadline}}`
-- The rest of the property-specific content (body paragraphs, the
-  key-facts list items, the price-row labels, the locality map SVG with
-  hardcoded Karura Forest, the site-plan SVG with hardcoded plot
-  dimensions) **still has Rosslyn-specific demo data baked in.**
-
-### What's left to do for the brochure
-
-1. **Finish templating `stripped-brochure.html`:**
-   - Body paragraphs (intro blurb, "shortest description", location
-     intro, gallery intro, terms text, disclaim)
-   - The `keylist` items (Location / Tenure / Size / Shape / Use / Status
-     / Sale)
-   - The price-row block + the four facts (Total area / Configuration /
-     Frontage / Tenure)
-   - The locality-map SVG — make positions / labels driven by data
-     (currently hardcoded to Karura / UN / Gigiri); or replace with a
-     real map embed
-   - The site-plan SVG — recompute polygon points from
-     `plotWidthMeters × plotLengthMeters`
-   - Per-page eyebrows (`§ I — At a Glance` etc.) — keep static or
-     templatise
-   - Photo `src` attributes — wire to property's `photos[]` array
-   - `assets/sansi-logo.jpg` reference — move logo into `public/`
-2. **Install Puppeteer:**
-   - For dev: `puppeteer` (auto-downloads Chromium)
-   - For Vercel production: switch to `puppeteer-core` +
-     `@sparticuz/chromium`
-3. **Replace `app/api/properties/[id]/brochure/pdf/route.ts`** so it:
-   - Reads the templated HTML from disk
-   - Replaces `{{slot}}` placeholders with property data + Claude slots
-   - Launches headless Chromium
-   - Sets page format A4
-   - Renders to PDF, streams back
-4. **Expand the `BrochureSlots` interface** (`lib/brochure/types.ts`) to
-   match the full set of `{{slot}}` positions in the templated HTML.
-5. **Update `lib/brochure/prompt.ts`** so Claude knows about all the new
-   slots and fills them on-tone.
-6. **Decide whether `@react-pdf/renderer` stays** as a fallback or gets
-   torn out. (Recommendation: tear out once Puppeteer works — one
-   pipeline is simpler.)
-
-### Where the assets are
-
-- Reference brochure (untouched): `kenya/netlify/index.html`
-- Stripped + partially templated: `kenya/netlify/stripped-brochure.html`
-- Property photos (5 large JPGs): `kenya/netlify/assets/gallery-*.jpg`,
-  `hero.jpg`
-- Sansi logo: `kenya/netlify/assets/sansi-logo.jpg` (needs to be moved
-  into `backoffice/public/sansi-logo.jpg`)
-- Original zip from the client: `kenya/Carol Lees.zip` (~31 MB — can be
-  deleted)
-
-### Latest direction: per-page template architecture (May 21 onward)
-
-The newest architectural decision — adopted after looking at the size and
-complexity of `stripped-brochure.html` — is to **split the brochure into
-six separate per-page templates** instead of one monolithic file.
-
-This SUPERSEDES the "templatise the single stripped HTML file" plan
-described above. Treat the earlier "What's left to do for the brochure"
-list as historical context; the revised plan is at the end of this
-subsection.
-
-#### What this means
-
-Instead of one 945-line file holding all six pages, we'd have:
+### File layout
 
 ```
 templates/brochure/
-├── _shared.css              shared design tokens, fonts, type scale
+├── _shell.html                  fonts, all CSS, {{PAGES}} insertion point
 ├── 01-cover.html
-├── 02-at-a-glance.html
+├── 02-glance.html
 ├── 03-location.html
 ├── 04-site-plan.html
-├── 05-feature.html         (or 05-gallery, depending on property type)
-└── 06-terms-and-contact.html
+├── 05-feature.html              (the gallery)
+└── 06-closing.html
+
+lib/brochure/
+├── types.ts                     CoverSlots / GlanceSlots / … / PageSlotSet
+├── pages.ts                     pagesFor(p) inclusion rules
+├── assembler.ts                 {{slot}} interpolation, per-page data-slot mappers,
+│                                  HTML fragment builders (particulars rows, nearby list,
+│                                  gallery tiles + adaptive grid spans), filename map
+├── claude.ts                    draftCoverCopy, draftGlanceCopy, draftLocationCopy,
+│                                  draftSitePlanCopy, draftFeatureCopy, draftClosingCopy
+└── prompts/
+    ├── cover.ts                 system prompt + few-shot + tool schema
+    ├── glance.ts
+    ├── location.ts
+    ├── site-plan.ts
+    ├── feature.ts
+    └── closing.ts
+
+app/api/properties/[id]/brochure/pdf-v2/route.ts    the live endpoint
+components/BrochureEditor.tsx                       simple "Generate brochure" button
+app/properties/[id]/brochure/page.tsx               wraps the editor
 ```
 
-Each file is a self-contained A4-sized HTML snippet that imports the
-shared CSS. No file knows about the others.
+### Knob design (every visible string is one of three things)
 
-#### Why this is better
+For each page, every glyph on the rendered PDF is either:
+1. **Pure data** — from `PropertyRecord` (title, price, photos, captions, lat/lng, etc.)
+2. **AI slot** — a Claude-filled editorial string (headline, intro, etc.)
+3. **Static template text** — eyebrow labels (`§ III — The Land`), the 5-step
+   process, contact card, disclaim copy
 
-1. **Easier to fill.** Each template has 2–5 slots, not ~15. Smaller,
-   more focused replacement step. Cleaner mental model when reading
-   the code or debugging output.
-2. **Less error scope.** A CSS bug on page 4 can't push page 2 around.
-   A Claude hallucination in the feature page can't bleed into the cover.
-3. **Per-property variability becomes natural.** The render pipeline
-   picks WHICH templates to include based on the property's data:
-   - Land/plots: keep `04-site-plan`, drop house-only content
-   - Apartments: drop `04-site-plan`, emphasise built area + amenities
-   - Restored heritage homes: add an extra "the restoration" page
-   - Beachfront homes: a "the setting" feature page with ocean imagery
-4. **Designers and devs can iterate page-by-page.** Fix the closing
-   page's disclaimer overflow without re-validating that the cover
-   still renders correctly. Marketing person can hand back one
-   page's `.html` for review without us regenerating the entire deck.
-5. **Slot prompts to Claude become per-page.** Smaller scope, sharper
-   few-shot examples, lower token budget per call. A targeted "fill
-   the cover" prompt with 4 slots returns faster and is easier to
-   evaluate than one 15-slot mega-prompt.
-6. **Caching potential.** Pages that didn't change between regenerations
-   (e.g. the static "process & terms" block) can be cached and
-   skipped — only the data/AI-driven pages re-render.
-7. **Failures degrade gracefully.** If Claude misfires on the feature
-   page, we can re-draft just that page from the preview UI without
-   resetting the other five.
+There is no fourth category. If something on a brochure page needs to
+vary per-property and isn't a knob today, the fix is to add either a
+data field or an AI slot — not to inline ad-hoc strings in templates.
 
-#### How the pipeline changes
+### Claude integration
 
-Old plan:
+- Model: `claude-sonnet-4-5`, temperature 0.4
+- Each page has its own system prompt with voice rules ("restrained,
+  sparing, slightly literary, British-English spelling, no marketing
+  clichés"), hard rules ("NEVER invent facts"), and 1–2 few-shot examples
+- User prompt is just `Key: value` lines from the property record (the
+  facts), nothing more
+- `tool_choice: { type: "tool", name: "fill_<page>" }` forces structured
+  JSON output matching that page's schema — Claude physically cannot reply
+  with prose or refuse
+- All 6 calls fire in parallel via `Promise.all`
+- Cost: ~7.7k input + ~730 output tokens per brochure → **~$0.03–$0.05
+  per render** at Sonnet 4.5 pricing. ~30% saving possible by enabling
+  prompt caching on the system prompts (worth doing once she's
+  generating dozens per month).
+
+### Mapbox locality map
+
+`fetchLocalityMap(lat, lng)` in `pdf-v2/route.ts`:
+- Uses Mapbox Static Images API, `outdoors-v12` style (landscape colours)
+- Zoom 15 → ~1.5 km field
+- Single property pin, no nearby pins (Mapbox's free geocoder has no
+  granular Kenyan landmark data; the "Within reach" side list carries
+  the named-places context instead)
+- Brochure-themed: subtle `saturate(0.9) contrast(1.04)` filter via CSS so
+  the map sits elegantly against the cream paper
+- Falls back to OSM static map if `MAPBOX_TOKEN` not set
+- Returns "" if coords missing; page just renders without the map
+
+`MAPBOX_TOKEN` is in `.env` (gitignored). For prod, restrict the token
+to a domain or generate a secret token.
+
+### Image handling
+
+Photos uploaded to `public/uploads/` (dev) or Supabase Storage (prod).
+At render time, `resolvePhoto()` reads local files and inlines as
+base64 data URIs — necessary because Puppeteer's headless Chromium
+doesn't carry the user's auth cookie, so a same-origin HTTP request to
+`/uploads/...` would be bounced by the auth middleware. External URLs
+(Supabase Storage) pass through; Puppeteer fetches them directly.
+
+**No cap on photo count enforced today.** Per-file 10 MB. Brochure
+gallery silently caps at photos[1..5] (cover uses photos[0]); anything
+beyond photo #6 doesn't appear. A soft cap at ~12 photos per property
+makes sense once she starts uploading large galleries — not added yet.
+
+### The "Create brochure" button flow
+
 ```
-property + 1 big slot set → 1 templated HTML → Puppeteer → 1 PDF
-```
-
-New plan:
-```
-property data
+property detail page
    ↓
-For each page in [01..06]:
-   ├── page-selection rule (e.g. skip 04-site-plan if apartment)
-   ├── Claude fills that page's slots only
-   └── render that page's HTML with the filled slots
+PropertyControls.tsx → <Link href="/properties/[id]/brochure">
    ↓
-Concatenate all included pages into one master HTML
+brochure/page.tsx wraps BrochureEditor.tsx
    ↓
-Puppeteer → PDF
+[Generate brochure] button
    ↓
-Stream to browser
+fetch POST /api/properties/[id]/brochure/pdf-v2
+   ↓
+PDF blob → URL.createObjectURL → anchor.click() → browser saves
 ```
 
-Each step is small, isolated, inspectable, and individually retry-able.
+The editor currently has no per-slot editing UI — press the button
+again to redraft. A per-page collapsible editor (re-draft just one
+page's slots, edit slot values inline) is on the wishlist; haven't
+needed it yet because regeneration is cheap.
 
-#### Code shape after this pivot
+### Known gotchas
 
-`lib/brochure/types.ts` splits into per-page types:
+- **Dev compile latency.** First time you navigate to a brochure page
+  in `npm run dev`, Next.js JIT-compiles the route + its dependencies
+  (`~5–30s`). Subsequent visits are instant. In prod, sub-second.
+- **Google Fonts loading inside Puppeteer.** `page.evaluate(() =>
+  document.fonts?.ready)` waits for Cormorant Garamond / JetBrains
+  Mono / Inter to actually load before generating the PDF — without
+  this wait, the first render of a fresh page can fall back to Times.
+- **Vercel deploy will need swap-in:** change `puppeteer` → `puppeteer-core`
+  + `@sparticuz/chromium` so the function bundle stays under Vercel's
+  size limit. Not done yet.
+- **Legacy `lib/brochure/template.tsx` + `lib/brochure/prompt.ts`** are
+  the unused React-PDF prototype. They typecheck so they're not in the
+  way; tear them out when convenient. Also `app/api/.../brochure/draft`
+  and `app/api/.../brochure/pdf` (the singular `/pdf`, not `/pdf-v2`)
+  are the legacy endpoints; the live endpoint is `/pdf-v2`. Rename to
+  `/pdf` once the legacy endpoints are deleted.
 
-```ts
-// lib/brochure/types.ts
-export interface CoverSlots {
-  coverEyebrow: string;
-  coverTitle: string;        // can be a 2-line break with <em>
-  coverTagline: string;
-}
-export interface GlanceSlots {
-  headline: string;
-  subhead: string;
-  blurb: string;
-}
-export interface LocationSlots {
-  headline: string;
-  intro: string;
-}
-export interface SitePlanSlots {
-  headline: string;
-}
-export interface FeatureSlots {
-  headline: string;
-  body: string;
-}
-export interface ClosingSlots {
-  headline: string;
-  termsPreamble: string;
-}
+### Pending follow-ups (not blocking — pipeline is shipped)
 
-export interface BrochureSlots {
-  cover: CoverSlots;
-  glance: GlanceSlots;
-  location: LocationSlots;
-  sitePlan?: SitePlanSlots;   // optional based on data
-  feature: FeatureSlots;
-  closing: ClosingSlots;
-}
-```
-
-Claude prompts get one file per page (`lib/brochure/prompts/cover.ts`,
-`lib/brochure/prompts/glance.ts`, …). Each file has:
-- A page-specific system prompt
-- 1–2 page-specific few-shot examples pulled from the reference brochure
-- A page-specific tool schema
-
-A new `lib/brochure/pages.ts` defines the page-selection rules:
-
-```ts
-export type PageId = "cover" | "glance" | "location" | "sitePlan" | "feature" | "closing";
-
-export function pagesFor(p: PropertyRecord): PageId[] {
-  const out: PageId[] = ["cover", "glance"];
-  if (p.city) out.push("location");
-  if (p.showPlotOnBrochure !== false && p.plotWidthMeters && p.plotLengthMeters) {
-    out.push("sitePlan");
-  }
-  out.push("feature", "closing");
-  return out;
-}
-```
-
-A new `lib/brochure/assembler.ts` does the final glue:
-
-```ts
-// Given a property + all per-page slots, returns the final concatenated
-// HTML ready for Puppeteer. Reads each page template from
-// templates/brochure/<id>.html, replaces {{slot}} placeholders, joins
-// them with <div class="page-break"></div>.
-export async function assembleBrochure(
-  p: PropertyRecord,
-  allSlots: BrochureSlots
-): Promise<string> { … }
-```
-
-`lib/brochure/claude.ts` exposes one function per page:
-
-```ts
-export async function draftCoverCopy(p): Promise<CoverSlots> { … }
-export async function draftGlanceCopy(p): Promise<GlanceSlots> { … }
-// …
-```
-
-`app/api/properties/[id]/brochure/draft/route.ts` becomes:
-- `POST /api/properties/[id]/brochure/draft` — runs ALL pages
-- `POST /api/properties/[id]/brochure/draft?page=cover` — runs just one page
-  (so the UI can offer "re-draft this page")
-
-The PDF route stays a single endpoint that calls the assembler then
-hands the HTML to Puppeteer.
-
-#### Preview/edit UI after this pivot
-
-`/properties/[id]/brochure` becomes a multi-section editor:
-
-```
-▾ Cover               [re-draft this page]
-   Eyebrow:   [______________________]
-   Title:     [______________________]
-   Tagline:   [______________________]
-
-▾ At a glance         [re-draft this page]
-   Headline:  [______________________]
-   ...
-
-▾ Site plan           [auto-skipped — no plot dimensions]
-                       (not editable; greyed out)
-
-...
-
-[ Download PDF ]
-```
-
-Each section is collapsible. Each section shows its own "re-draft"
-button. Skipped pages render as greyed cards with a note explaining
-why (e.g. "Skipped: this is an apartment, no plot diagram applies").
-
-#### Revised "what's left to do for the brochure"
-
-The earlier 6-step plan in this section is replaced with:
-
-1. Create `templates/brochure/` directory + 6 per-page HTML files + a
-   shared `_shared.css`. Extract each page out of `stripped-brochure.html`.
-2. Define the slot inventory per page; codify in
-   `lib/brochure/types.ts`.
-3. Write one Claude prompt module per page in
-   `lib/brochure/prompts/*`, each with its own tool schema and
-   page-specific few-shots from the reference.
-4. Implement `lib/brochure/pages.ts` (page-selection rules) and
-   `lib/brochure/assembler.ts` (HTML assembly + slot interpolation).
-5. Update `lib/brochure/claude.ts` to expose per-page draft functions.
-6. Install Puppeteer (`puppeteer` for local; `puppeteer-core` +
-   `@sparticuz/chromium` for Vercel / serverless).
-7. Replace `app/api/properties/[id]/brochure/pdf/route.ts` with the
-   assembler + Puppeteer pipeline.
-8. Update `app/api/properties/[id]/brochure/draft/route.ts` to support
-   `?page=<id>` for per-page re-drafts.
-9. Rewrite `components/BrochureEditor.tsx` as the per-page collapsible
-   editor described above.
-10. Remove the `@react-pdf/renderer` template
-    (`lib/brochure/template.tsx`) once Puppeteer-driven brochures are
-    working end-to-end. One pipeline is simpler than two.
-
-#### Things to be careful of with this architecture
-
-- **Typography consistency across pages.** Each page imports
-  `_shared.css` — don't let individual page files override fonts or
-  colors unless intentional. Centralise design tokens.
-- **Page-break behaviour.** Each page template should end with
-  `<div style="page-break-after: always;"></div>` (or the assembler
-  inserts it). Use Puppeteer's `@page { size: A4; margin: 0; }` CSS
-  to lock the page format.
-- **Shared running header / footer.** Two options: either include them
-  inside each page template (simple but redundant), or use Puppeteer's
-  `headerTemplate` / `footerTemplate` options at PDF generation time
-  (DRY but Puppeteer's header HTML has size limits and font weirdness).
-  Recommend: in-template until you hit a maintenance pain point.
-- **The site-plan SVG.** Still needs polygon recomputation from
-  `plotWidthMeters × plotLengthMeters`. Belongs ONLY in
-  `04-site-plan.html`. Drive the polygon points + dimension labels
-  from data, not hardcoded.
-- **Photo URLs.** In dev the URLs are `/uploads/...` (same-origin).
-  In prod they're Supabase Storage public URLs. Puppeteer will load
-  both fine, but ensure the dev server is reachable from wherever
-  Puppeteer is running (loopback fine on local, more careful on
-  serverless — may need to inline images as data URIs in production
-  if the Puppeteer Lambda can't reach localhost).
-- **One Claude API call per page** means ~6 calls per brochure. With
-  Claude Sonnet 4.5 latency that's ~30–60 seconds total if sequential,
-  ~10 seconds if parallelised. **Parallelise** — `Promise.all` across
-  the included pages. The preview UI should be designed to handle that
-  wait (skeletons, "drafting cover…" / "drafting feature…" indicators).
+1. **Tear out the legacy React-PDF prototype:**
+   `lib/brochure/template.tsx`, `lib/brochure/prompt.ts`,
+   `app/api/properties/[id]/brochure/draft/route.ts`,
+   `app/api/properties/[id]/brochure/pdf/route.ts`. Then rename
+   `pdf-v2` → `pdf`.
+2. **Per-page collapsible editor UI** in BrochureEditor.tsx. Re-draft
+   one page at a time, optional inline edits to slot values before render.
+3. **Soft cap on photo uploads** (e.g. 12 per property, client-side
+   message).
+4. **Prompt caching** on the system prompts (Anthropic cache_control,
+   marks the static system + few-shot block as cached) — drops per-render
+   token cost ~30%.
+5. **Vercel-ready Puppeteer**: swap to `puppeteer-core` +
+   `@sparticuz/chromium` before deploy.
 
 ---
 
@@ -707,9 +542,22 @@ kenya/                          NOT a git repo (intentionally)
     ├── .env.local              AUTH_SECRET + USE_DEV_DATA=true (gitignored)
     ├── .env.example            template; safe to commit
     ├── migrations/
-    │   ├── 001_init.sql        full Postgres schema
-    │   ├── 002_brochure_fields.sql
-    │   └── README.md           how to apply migrations
+    │   ├── 001_init.sql                        full Postgres schema
+    │   ├── 002_brochure_fields.sql             facing dir + plot dims + toggles
+    │   ├── 003_brochure_glance_fields.sql      tenure, shape, condition, sale terms
+    │   ├── 004_property_coords.sql             latitude, longitude
+    │   ├── 005_brochure_site_plan_fields.sql   topography, boundary, services
+    │   ├── 006_brochure_photo_captions.sql     photo_captions text[]
+    │   └── README.md                           how to apply migrations
+    ├── templates/
+    │   └── brochure/                           per-page HTML templates
+    │       ├── _shell.html                     CSS, fonts, {{PAGES}} insertion
+    │       ├── 01-cover.html
+    │       ├── 02-glance.html
+    │       ├── 03-location.html
+    │       ├── 04-site-plan.html
+    │       ├── 05-feature.html
+    │       └── 06-closing.html
     ├── lib/
     │   ├── roles.ts            ★ single source of truth for RBAC ★
     │   ├── auth.ts             JWT session helpers (jose + cookie)
@@ -726,10 +574,19 @@ kenya/                          NOT a git repo (intentionally)
     │   │   ├── users.ts        data layer for users (with seed-shadowing)
     │   │   └── documents.ts    stub for Step 3 (mandate access logging)
     │   └── brochure/
-    │       ├── types.ts        BrochureSlots interface (8 slots)
-    │       ├── prompt.ts       Claude system prompt + few-shots
-    │       ├── claude.ts       Anthropic SDK wrapper (tool-use)
-    │       └── template.tsx    @react-pdf/renderer template (TO BE REPLACED)
+    │       ├── types.ts        per-page slot types + PageSlotSet anchor
+    │       ├── pages.ts        pagesFor(p) inclusion rules
+    │       ├── assembler.ts    HTML interpolation + data-slot mappers
+    │       ├── claude.ts       draftCoverCopy / Glance / Location / SitePlan / Feature / Closing
+    │       ├── prompts/        one prompt module per page
+    │       │   ├── cover.ts
+    │       │   ├── glance.ts
+    │       │   ├── location.ts
+    │       │   ├── site-plan.ts
+    │       │   ├── feature.ts
+    │       │   └── closing.ts
+    │       ├── prompt.ts       LEGACY — unused React-PDF prototype
+    │       └── template.tsx    LEGACY — unused React-PDF prototype
     ├── app/
     │   ├── login/page.tsx
     │   ├── dashboard/page.tsx
@@ -766,8 +623,9 @@ kenya/                          NOT a git repo (intentionally)
     │           ├── [id]/publish/route.ts             POST publish-to-website
     │           ├── [id]/approve/route.ts             POST Owner approve
     │           ├── [id]/request-changes/route.ts     POST Owner reject w/ note
-    │           ├── [id]/brochure/draft/route.ts      POST Claude → slots
-    │           └── [id]/brochure/pdf/route.ts        POST slots → PDF download
+    │           ├── [id]/brochure/draft/route.ts      LEGACY (unused)
+    │           ├── [id]/brochure/pdf/route.ts        LEGACY (unused)
+    │           └── [id]/brochure/pdf-v2/route.ts     ★ live brochure endpoint ★
     ├── components/
     │   ├── Header.tsx              site-wide header (Home / Profile / Sign out)
     │   ├── PropertyForm.tsx        create/edit form (long)
@@ -813,6 +671,19 @@ intermediate `Reset password` admin flow we do have.)
 ### Back-office shell
 - ✅ #15 Dashboard (role-aware, side-panel for Owner approval queue)
 - 🟡 #16 Mobile responsive (the pages we built are; not exhaustive yet)
+
+### Brochure generator (#72–#75 area + add-ons)
+- ✅ "Create brochure" button on property detail (Owner / Assistant / GM)
+- ✅ 6-page per-page template architecture (HTML + Puppeteer)
+- ✅ Adaptive page inclusion (location / site plan / gallery drop in/out per data)
+- ✅ Claude tool-use editorial copy, one prompt module per page, parallel calls
+- ✅ Mapbox locality-map embed with brochure-themed CSS filter
+- ✅ Owner-uploaded floor plan PNG slot, with optional particulars data fields
+- ✅ Photo gallery w/ adaptive grid (2/3/4/5 tile layouts) + per-photo captions
+- ✅ Closing page: AI headline + AI terms paragraph + static 5-step process + contact card
+- 🟡 Legacy `@react-pdf/renderer` prototype still in tree (not used — tear out)
+- 🟡 Per-page collapsible editor UI (regeneration works; in-place editing TBD)
+- 🟡 Vercel-ready: swap `puppeteer` → `puppeteer-core` + `@sparticuz/chromium` before deploy
 - ✅ #17 Navigation (Header component everywhere)
 
 ### Property management
@@ -872,7 +743,8 @@ intermediate `Reset password` admin flow we do have.)
 ### Infrastructure
 - ✅ #120 Next.js app set up
 - ✅ #122 GitHub repo (https://github.com/Aditya-Dhodapkar/contract-ivy-devs)
-- ✅ #125 Anthropic Claude API integration (for brochure)
+- ✅ #125 Anthropic Claude API integration (brochure, 6 parallel per-page calls)
+- ✅ Mapbox Static Images API integration (locality map on page 3)
 - 🟡 #123 Database — Supabase code path written, never run against a live
   project
 - 🟡 #124 Document storage — using Supabase Storage in code; needs Step 3
@@ -951,30 +823,30 @@ pushed back on a default:
 
 ## 15. Recommended next steps (in priority order)
 
-1. **Finish the brochure pivot** (HTML template + Puppeteer). See §10.
-   This is mid-flight; most-recent slice of work.
-2. **Move `sansi-logo.jpg` into `backoffice/public/`** — currently the
-   brochure cover renders without a logo because the file is in
-   `kenya/netlify/assets/`, not in the repo.
-3. **Provision Supabase** under the client's account. Apply
-   `migrations/001_init.sql` and `migrations/002_brochure_fields.sql`.
-   Create a storage bucket `property-photos` (or whatever you set
-   `SUPABASE_STORAGE_BUCKET` to). Confirm the live Supabase branch works
-   end-to-end (this is the first real test of that code path). Mark #123
-   ✅ once done.
-4. **Set up Vercel hosting** (#121). Deploy. Confirm the prod build works
-   against the real Supabase project.
-5. **Step 3 — Document storage (#63–#71).** Mandate / title deed / deed
+1. **Brochure cleanup** (§10 "Pending follow-ups"): tear out the legacy
+   React-PDF prototype + rename `/pdf-v2` → `/pdf`; build the per-page
+   collapsible editor UI; soft-cap photo uploads at ~12; turn on
+   Anthropic prompt caching; swap `puppeteer` → `puppeteer-core` +
+   `@sparticuz/chromium` for Vercel readiness.
+2. **Provision Supabase** under the client's account. Apply ALL six
+   migration files in order (`001` → `006`). Create a storage bucket
+   `property-photos`. Confirm the live Supabase branch works end-to-end
+   (this is the first real test of that code path). Mark #123 ✅ once
+   done.
+3. **Set up Vercel hosting** (#121). Deploy. Confirm the prod build works
+   against the real Supabase project + the Mapbox token is restricted to
+   the prod domain.
+4. **Step 3 — Document storage (#63–#71).** Mandate / title deed / deed
    plan upload, secure storage in the same Supabase bucket (different
    prefix), immutable access log. Wires up `lib/repo/documents.ts`
    (currently a stub). Once done, the pre-publish checklist's mandate
    gate (#59) flips from 🟡 to ✅ automatically — no other code change.
-6. **Step 4 — Certificate generator (#76–#78).** Reuse the Puppeteer
+5. **Step 4 — Certificate generator (#76–#78).** Reuse the Puppeteer
    pipeline from the brochure work. Simple template.
-7. **Push the integration smoke suite into a real file** (e.g.
+6. **Push the integration smoke suite into a real file** (e.g.
    `scripts/test-integration.ts`) so the next dev can run it locally and
    in CI. Currently it lives in chat history; not great.
-8. **Once she finishes Meta verification + Zoho setup, kick off Phase 2.**
+7. **Once she finishes Meta verification + Zoho setup, kick off Phase 2.**
    Lead capture → smart routing → AI replies → timers → reports.
 
 ---
