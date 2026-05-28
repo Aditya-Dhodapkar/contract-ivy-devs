@@ -112,6 +112,7 @@ async function fetchLocalityMap(
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Params) {
+  try {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   if (!can(user.role, "generateBrochure")) {
@@ -122,13 +123,21 @@ export async function POST(req: Request, { params }: Params) {
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const pages = pagesFor(p);
+  // Cover guard: photos[0] is the hero, but a landscape image stretched
+  // into the portrait A4 cover crops badly. The form blocks landscape
+  // photos from being set primary, but pre-existing records (or photos
+  // uploaded before dimensions were captured) might still slip through —
+  // re-check here. Landscape → drop the hero entirely; the cover falls
+  // back to a solid forest-green panel with the vignette + title text.
+  const coverDim = p.photoDimensions?.[0];
+  const coverIsLandscape = !!(coverDim && coverDim.w > coverDim.h * 1.05);
   // Photos[0] is the cover hero; the gallery page consumes photos[1..5].
   const galleryUrls = pages.includes("feature")
     ? (p.photos ?? []).slice(1, 6)
     : [];
   const [logo, coverHero, localityMap, floorPlan, ...galleryPhotos] = await Promise.all([
     localImageDataUri("sansi-logo.jpg"),
-    resolvePhoto(p.photos?.[0]),
+    coverIsLandscape ? Promise.resolve("") : resolvePhoto(p.photos?.[0]),
     pages.includes("location")
       ? fetchLocalityMap(p.latitude, p.longitude)
       : Promise.resolve(""),
@@ -149,11 +158,24 @@ export async function POST(req: Request, { params }: Params) {
     })
   );
 
+  // Dimensions for the gallery photos, aligned to the same slice we resolved.
+  // The assembler uses these to score photos against tile aspect ratios.
+  const galleryDims = pages.includes("feature")
+    ? (p.photoDimensions ?? []).slice(1, 6)
+    : [];
+
   const html = await assembleBrochureHtml({
     property: p,
     aiSlots,
     pages,
-    images: { logo, coverHero, localityMap, floorPlan, galleryPhotos: galleryPhotos.filter(Boolean) },
+    images: {
+      logo,
+      coverHero,
+      localityMap,
+      floorPlan,
+      galleryPhotos: galleryPhotos.filter(Boolean),
+      galleryDims,
+    },
   });
 
   // Launch headless Chromium and render.
@@ -182,5 +204,13 @@ export async function POST(req: Request, { params }: Params) {
     });
   } finally {
     await browser.close();
+  }
+  } catch (e) {
+    const err = e as Error;
+    console.error("[brochure/pdf-v2]", err.stack || err.message);
+    return NextResponse.json(
+      { error: err.message, stack: err.stack?.split("\n").slice(0, 10).join("\n") },
+      { status: 500 }
+    );
   }
 }

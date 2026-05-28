@@ -112,9 +112,12 @@
 
   /* === COVER === */
   .cover { background: var(--paper); }
+  /* Fallback when the cover hero is missing (e.g. property has no
+     portrait photo): the section's --accent background plus the vignette
+     gradient looks intentional and editorial, not broken. */
   .cover-hero {
     position: absolute; inset: 0;
-    background-image: url('assets/hero.jpg');
+    background-color: var(--accent);
     background-size: cover; background-position: center;
   }
   .cover-vignette {

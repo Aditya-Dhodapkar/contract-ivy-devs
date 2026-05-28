@@ -120,33 +120,85 @@ export interface AssemblyInput {
     localityMap: string; // static-map image for the location page (or "")
     floorPlan: string;   // resolved site/floor plan image for page 4 (or "")
     galleryPhotos: string[]; // resolved photos[1..N] for page 5 gallery
+    /** Pixel dimensions aligned to galleryPhotos. May contain undefined/null
+     *  entries for photos uploaded before dimension capture. */
+    galleryDims: Array<{ w: number; h: number } | null | undefined>;
   };
 }
 
-/** Predefined tile spans per gallery photo count. Spans are tuned so each
- *  layout fills the grid without empty cells. Returned as inline-style
- *  fragments to drop into each tile's `style` attribute. */
-function gallerySpans(count: number): string[] {
+/** A gallery tile slot: where it sits in the grid + the aspect ratio it
+ *  actually occupies on the page. Aspect is used to match photos by shape
+ *  so a portrait photo doesn't land in a 2:1 letterbox tile (half-clipped)
+ *  and vice versa. */
+type GallerySlot = { spans: string; aspect: number };
+
+/** Predefined tile slots per gallery photo count. The aspect numbers are
+ *  computed from page geometry: inner page width 682px (794 page − 2×56
+ *  margin) ÷ column count, times the row height set in _shell.html for
+ *  that layout. */
+function gallerySlots(count: number): GallerySlot[] {
+  const COL_6 = 682 / 6;
+  const COL_2 = 682 / 2;
   switch (count) {
     case 2:
-      return ["", ""];
-    case 3:
+      // 2-col grid, single row of 420px. Tiles are visually portrait.
       return [
-        "grid-column: span 4; grid-row: span 3;",
-        "grid-column: span 2; grid-row: span 2;",
-        "grid-column: span 2; grid-row: span 1;",
+        { spans: "", aspect: COL_2 / 420 },
+        { spans: "", aspect: COL_2 / 420 },
+      ];
+    case 3:
+      // 6-col grid, 210px rows. One big portrait-ish tile + two smaller.
+      return [
+        { spans: "grid-column: span 4; grid-row: span 3;", aspect: (4 * COL_6) / (3 * 210) },
+        { spans: "grid-column: span 2; grid-row: span 2;", aspect: (2 * COL_6) / (2 * 210) },
+        { spans: "grid-column: span 2; grid-row: span 1;", aspect: (2 * COL_6) / 210 },
       ];
     case 4:
-      return ["", "", "", ""];
-    default: // 5+: reference editorial mosaic
+      // 2×2 grid, 210px rows. All tiles same shape, landscape-ish.
       return [
-        "grid-column: span 4; grid-row: span 3;",
-        "grid-column: span 2; grid-row: span 2;",
-        "grid-column: span 2; grid-row: span 1;",
-        "grid-column: span 3; grid-row: span 2;",
-        "grid-column: span 3; grid-row: span 2;",
+        { spans: "", aspect: COL_2 / 210 },
+        { spans: "", aspect: COL_2 / 210 },
+        { spans: "", aspect: COL_2 / 210 },
+        { spans: "", aspect: COL_2 / 210 },
+      ];
+    default: // 5+: the reference editorial mosaic
+      return [
+        { spans: "grid-column: span 4; grid-row: span 3;", aspect: (4 * COL_6) / (3 * 130) },
+        { spans: "grid-column: span 2; grid-row: span 2;", aspect: (2 * COL_6) / (2 * 130) },
+        { spans: "grid-column: span 2; grid-row: span 1;", aspect: (2 * COL_6) / 130 },
+        { spans: "grid-column: span 3; grid-row: span 2;", aspect: (3 * COL_6) / (2 * 130) },
+        { spans: "grid-column: span 3; grid-row: span 2;", aspect: (3 * COL_6) / (2 * 130) },
       ];
   }
+}
+
+/** Greedy assignment: for each slot (in fixed visual order) pick the
+ *  remaining photo whose aspect is closest to the slot's aspect in log
+ *  space (so 1.0 vs 0.5 is the same distance as 1.0 vs 2.0). Returns the
+ *  indices into the original photos array, in slot order. */
+function assignPhotosToSlots(
+  photoAspects: number[],
+  slots: GallerySlot[]
+): number[] {
+  const used = new Set<number>();
+  const out: number[] = [];
+  for (const slot of slots) {
+    let bestIdx = -1;
+    let bestScore = Infinity;
+    for (let i = 0; i < photoAspects.length; i++) {
+      if (used.has(i)) continue;
+      const d = Math.abs(Math.log(photoAspects[i]) - Math.log(slot.aspect));
+      if (d < bestScore) {
+        bestScore = d;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx >= 0) {
+      used.add(bestIdx);
+      out.push(bestIdx);
+    }
+  }
+  return out;
 }
 
 /** Builds the flat {{key}} → value map for one page's interpolation pass.
@@ -277,29 +329,48 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
     }
     case "feature": {
       const f = (aiSlots.feature ?? {}) as Partial<FeatureSlots>;
-      // Take up to 5 gallery photos (the route already excluded the cover).
-      // Captions are aligned to the original `photos` array via index — since
-      // gallery starts at photos[1], caption indices shift by +1.
+      // Up to 5 gallery photos (route already excluded the cover). Captions
+      // are aligned to the original `photos` array; gallery starts at
+      // photos[1] so caption index = (photo index in gallery) + 1.
       const photoUrls = images.galleryPhotos.slice(0, 5);
+      const photoDims = images.galleryDims.slice(0, 5);
       const count = photoUrls.length;
-      const layoutCount = count >= 5 ? 5 : count; // 2/3/4/5 → respective class
-      const spans = gallerySpans(count);
+      const layoutCount = count >= 5 ? 5 : count;
+      const slots = gallerySlots(count);
       const captions = p.photoCaptions ?? [];
-      const galleryTiles = photoUrls
-        .map((url, i) => {
-          // photos[0] = cover; gallery is photos[1..], so caption index = i + 1
-          const cap = (captions[i + 1] ?? "").trim();
-          const num = String(i + 1).padStart(2, "0");
-          // Caption format mirrors the reference: "01 — Caption text". When
-          // no caption is set we leave data-cap empty and the overlay hides.
+
+      // Compute each photo's aspect ratio. Unknown dimensions → assume 1.0
+      // (neutral) so the photo can land anywhere without skewing scores.
+      const aspects = photoUrls.map((_, i) => {
+        const d = photoDims[i];
+        return d && d.w && d.h ? d.w / d.h : 1.0;
+      });
+      const order = assignPhotosToSlots(aspects, slots);
+
+      const galleryTiles = order
+        .map((photoIdx, slotIdx) => {
+          const url = photoUrls[photoIdx];
+          const slot = slots[slotIdx];
+          const cap = (captions[photoIdx + 1] ?? "").trim();
+          const num = String(slotIdx + 1).padStart(2, "0");
           const dataCap = cap ? `${num} — ${cap}` : "";
-          const style = [
-            `background-image:url('${url}')`,
-            spans[i] || "",
-          ]
-            .filter(Boolean)
-            .join("; ");
-          return `<div class="ph" data-cap="${escapeHtml(dataCap)}" style="${style}"></div>`;
+
+          // Decide cover vs contain. If the photo's aspect is reasonably
+          // close to the tile's aspect (within ~1.5× either way) we crop
+          // ("cover") so the tile fills cleanly. If it's badly off (e.g.
+          // a portrait photo in a 2:1 tile) we letterbox ("contain") on
+          // the paper colour so we never half-clip a subject.
+          const photoAspect = aspects[photoIdx];
+          const ratio = photoAspect / slot.aspect;
+          const fit = ratio > 1.55 || ratio < 0.65 ? "contain" : "cover";
+
+          const tileStyle = slot.spans || "";
+          const imgStyle = `width:100%; height:100%; object-fit:${fit}; display:block;`;
+          return (
+            `<div class="ph" data-cap="${escapeHtml(dataCap)}" style="${tileStyle}">` +
+            `<img src="${escapeHtml(url)}" alt="" style="${imgStyle}" />` +
+            `</div>`
+          );
         })
         .join("\n      ");
 

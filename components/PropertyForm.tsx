@@ -91,6 +91,18 @@ export function PropertyForm({
     });
     return m;
   });
+  // Pixel dimensions per photo, tracked URL→{w,h} so reorder/remove stays
+  // trivial. Drives the orientation badge + the ★-button guard. Older
+  // photos without dimensions show no badge; ★ stays enabled (we can't
+  // disable a button on missing data).
+  const [dimsByUrl, setDimsByUrl] = useState<Record<string, { w: number; h: number }>>(() => {
+    const m: Record<string, { w: number; h: number }> = {};
+    (existing?.photos ?? []).forEach((url, i) => {
+      const d = existing?.photoDimensions?.[i];
+      if (d && d.w && d.h) m[url] = d;
+    });
+    return m;
+  });
   const [uploading, setUploading] = useState(0);
   const [floorPlan, setFloorPlan] = useState<string>(existing?.floorPlan ?? "");
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
@@ -169,13 +181,25 @@ export function PropertyForm({
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || `Upload failed for ${file.name}`);
-      return j.url as string;
+      const j = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        width?: number;
+        height?: number;
+        error?: string;
+      };
+      if (!res.ok || !j.url) throw new Error(j.error || `Upload failed for ${file.name}`);
+      return { url: j.url, width: j.width, height: j.height };
     });
     try {
-      const urls = await Promise.all(uploads);
-      setPhotos((curr) => [...curr, ...urls]);
+      const uploaded = await Promise.all(uploads);
+      setPhotos((curr) => [...curr, ...uploaded.map((u) => u.url)]);
+      setDimsByUrl((curr) => {
+        const next = { ...curr };
+        uploaded.forEach(({ url, width, height }) => {
+          if (width && height) next[url] = { w: width, h: height };
+        });
+        return next;
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -190,6 +214,23 @@ export function PropertyForm({
       const { [url]: _drop, ...rest } = curr;
       return rest;
     });
+    setDimsByUrl((curr) => {
+      if (!(url in curr)) return curr;
+      const { [url]: _drop, ...rest } = curr;
+      return rest;
+    });
+  }
+
+  /** Classify a photo's orientation. "landscape" → wider than tall by >5%,
+   *  "portrait" → taller than wide by >5%, "square" → within 5%,
+   *  "unknown" → no dimensions on record (older photos / failed sharp read). */
+  function orientationOf(url: string): "landscape" | "portrait" | "square" | "unknown" {
+    const d = dimsByUrl[url];
+    if (!d) return "unknown";
+    const ratio = d.w / d.h;
+    if (ratio > 1.05) return "landscape";
+    if (ratio < 0.95) return "portrait";
+    return "square";
   }
 
   function setCaption(url: string, caption: string) {
@@ -222,6 +263,10 @@ export function PropertyForm({
   }
 
   function setPrimary(url: string) {
+    // Cover guard: landscape photos crop badly into the portrait A4 cover.
+    // We block setting them as primary; the user must pick a portrait or
+    // square photo. Photos with unknown dimensions are allowed through.
+    if (orientationOf(url) === "landscape") return;
     setPhotos((curr) => [url, ...curr.filter((u) => u !== url)]);
   }
 
@@ -278,6 +323,7 @@ export function PropertyForm({
         .filter((r) => r.place.trim() || r.distance.trim() || r.description.trim()),
       photos,
       photoCaptions: photos.map((u) => captionByUrl[u] || ""),
+      photoDimensions: photos.map((u) => dimsByUrl[u] || null),
     };
     if (showAgentPicker && assignedAgentId) {
       payload.assignedAgentId = assignedAgentId;
@@ -548,6 +594,19 @@ export function PropertyForm({
         <span className={labelText}>
           Photos {photos.length > 0 && `(${photos.length})`}
         </span>
+        <div className="mb-3 border-l-2 border-gold-deep bg-gold/5 px-3 py-2 text-xs text-ink-soft">
+          <p>
+            <span className="font-medium text-ink">Cover photo:</span> include at
+            least one <span className="font-medium">portrait</span> (taller-than-wide)
+            shot — landscape photos crop badly on the brochure cover. Hold the phone
+            vertically.
+          </p>
+          <p className="mt-1">
+            <span className="font-medium text-ink">Gallery:</span> a mix of
+            portrait and landscape gives the best mosaic on page 5. Aim for
+            5–8 strong shots: exteriors, interiors, garden, views.
+          </p>
+        </div>
         <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-hairline/30 bg-ivory px-4 py-6 text-sm text-ink-mute hover:bg-ivory-deep">
           <span>Click to select photos (multiple)</span>
           <span className="mt-1 text-xs text-ash">
@@ -570,6 +629,18 @@ export function PropertyForm({
               const isPrimary = i === 0;
               const isFirst = i === 0;
               const isLast = i === photos.length - 1;
+              const orient = orientationOf(url);
+              const canBePrimary = orient !== "landscape"; // unknown allowed
+              const orientLabel =
+                orient === "portrait" ? "Portrait" :
+                orient === "landscape" ? "Landscape" :
+                orient === "square" ? "Square" : "";
+              const orientClass =
+                orient === "landscape"
+                  ? "bg-red-700/85 text-paper"
+                  : orient === "portrait"
+                    ? "bg-green-700/85 text-paper"
+                    : "bg-ash/70 text-paper";
               return (
                 <li key={url} className="group overflow-hidden border border-hairline/15 bg-paper">
                   <div className="relative aspect-square bg-ivory-deep">
@@ -578,6 +649,11 @@ export function PropertyForm({
                     {isPrimary && (
                       <span className="absolute left-1 top-1 bg-gold-deep px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-paper">
                         Primary
+                      </span>
+                    )}
+                    {orientLabel && (
+                      <span className={`absolute left-1 bottom-1 px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${orientClass}`}>
+                        {orientLabel}
                       </span>
                     )}
                     <span className="absolute right-1 top-1 bg-ink/70 px-1.5 py-0.5 text-[10px] text-paper">
@@ -614,8 +690,13 @@ export function PropertyForm({
                       <button
                         type="button"
                         onClick={() => setPrimary(url)}
-                        title="Make this the primary photo"
-                        className="flex-1 py-1.5 hover:bg-ivory-deep"
+                        disabled={!canBePrimary}
+                        title={
+                          canBePrimary
+                            ? "Make this the primary photo"
+                            : "Cover photos must be portrait. Landscape photos can't be the primary."
+                        }
+                        className="flex-1 py-1.5 hover:bg-ivory-deep disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         ☆
                       </button>
@@ -646,7 +727,11 @@ export function PropertyForm({
           </ul>
         )}
         <p className="mt-2 text-xs text-ash">
-          The primary photo (★) is shown on the website and on the brochure cover. Tap ☆ on any other photo to make it the primary. Use ← → to reorder, ✕ to remove. Captions are optional — when set, they appear as overlays on the brochure gallery page.
+          The primary photo (★) is shown on the website and on the brochure cover.
+          Only portrait or square photos can be the primary — landscape ones crop
+          badly on the cover. Tap ☆ on any portrait photo to make it the primary.
+          Use ← → to reorder, ✕ to remove. Captions are optional — when set,
+          they appear as overlays on the brochure gallery page.
         </p>
       </div>
 
