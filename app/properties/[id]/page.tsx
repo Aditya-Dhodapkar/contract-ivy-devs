@@ -7,8 +7,11 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import { getProperty } from "@/lib/repo/properties";
+import { listForProperty as listDocs } from "@/lib/repo/documents";
 import { PropertyForm } from "@/components/PropertyForm";
 import { PropertyControls } from "@/components/PropertyControls";
+import { DocumentsPanel } from "@/components/DocumentsPanel";
+import { PhotoStrip } from "@/components/PhotoStrip";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApprovalBadge } from "@/components/ApprovalBadge";
 import { WebsiteBadge } from "@/components/WebsiteBadge";
@@ -33,11 +36,20 @@ export default async function PropertyDetail({
 
   const isOwnerOfRecord = p.assignedAgentId === user.id;
   const canEdit = can(user.role, "editProperty", { isOwnerOfRecord });
+  const canViewDocs = can(user.role, "viewDocuments", { isOwnerOfRecord });
+  const canUploadDocs = can(user.role, "uploadDocument", { isOwnerOfRecord });
+  const canDeleteDocs = can(user.role, "deleteDocument");
+
+  // Doc count for the jump-chip near the title. Cheap query (3 rows at most).
+  const docCount = canViewDocs ? (await listDocs(p.id)).length : 0;
+  const hasMandate = canViewDocs
+    ? (await listDocs(p.id)).some((d) => d.docType === "mandate")
+    : false;
 
   return (
     <div className="min-h-screen bg-ivory">
       <Header back={{ href: "/properties", label: "Properties" }} />
-      <div className="mx-auto max-w-4xl px-6 py-12">
+      <div className="mx-auto max-w-5xl px-6 py-12">
       {(sp.saved || sp.created) && (
         <div className="mb-6 flex items-center justify-between border border-gold/40 bg-gold/10 px-4 py-3">
           <div className="text-sm">
@@ -58,8 +70,8 @@ export default async function PropertyDetail({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl">{p.title || "Untitled"}</h1>
-          <p className="text-xs text-ash">
+          <h1 className="font-serif text-4xl leading-tight sm:text-5xl">{p.title || "Untitled"}</h1>
+          <p className="mt-1 text-sm text-ash">
             {p.referenceNumber} · {[p.city, p.country].filter(Boolean).join(", ") || "—"} · {p.propertyType || "—"}
           </p>
         </div>
@@ -70,23 +82,52 @@ export default async function PropertyDetail({
         </div>
       </div>
 
-      {p.photos && p.photos.length > 0 && (
-        <div className="mt-8 grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {p.photos.map((url, i) => (
-            <div key={url} className="relative aspect-square overflow-hidden bg-ivory-deep">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="h-full w-full object-cover" />
-              {i === 0 && (
-                <span className="absolute left-1 top-1 bg-ink/80 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-paper">
-                  Primary
+      {canViewDocs && (() => {
+        // Traffic-light gradient by upload count. All four shades pulled from
+        // brochure-adjacent tones so the pill stays on-brand. Mandate-missing
+        // warning text is orthogonal — it can fire on any count below 3.
+        const pillColor =
+          docCount === 0 ? "#8a3a3a"       // berry red
+          : docCount === 1 ? "#b86b1f"     // burnt orange
+          : docCount === 2 ? "#b8923a"     // warm amber
+          : "#2d3b2c";                     // forest green
+        const tooltip =
+          docCount === 3
+            ? "All documents uploaded. Jump to the documents section."
+            : !hasMandate
+              ? "Mandate not uploaded — publishing is blocked. Click to jump to the documents section."
+              : `${3 - docCount} document${3 - docCount === 1 ? "" : "s"} still to upload. Jump to the section.`;
+        return (
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <a
+              href="#documents"
+              style={{ backgroundColor: pillColor, borderColor: pillColor }}
+              className="inline-flex items-center gap-2 border px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-paper shadow-sm transition-opacity hover:opacity-90"
+              title={tooltip}
+            >
+              <span aria-hidden className="text-base">📎</span>
+              <span>Documents · {docCount}/3</span>
+              {!hasMandate && (
+                <span className="border-l border-paper/40 pl-2.5 text-xs font-normal normal-case tracking-normal">
+                  ⚠ mandate missing
                 </span>
               )}
-            </div>
-          ))}
-        </div>
+              {docCount === 3 && (
+                <span className="border-l border-paper/40 pl-2.5 text-xs font-normal normal-case tracking-normal">
+                  ✓ complete
+                </span>
+              )}
+              <span aria-hidden className="ml-1">↓</span>
+            </a>
+          </div>
+        );
+      })()}
+
+      {p.photos && p.photos.length > 0 && (
+        <PhotoStrip photos={p.photos} />
       )}
 
-      <div className="mt-10 grid gap-10 md:grid-cols-[1fr,18rem]">
+      <div className="mt-10 grid gap-10 md:grid-cols-[1fr,19rem]">
         <div>
           <h2 className="font-serif text-2xl">
             {canEdit ? "Edit details" : "Details"}
@@ -157,13 +198,26 @@ export default async function PropertyDetail({
         </div>
 
         {canEdit ? (
-          <PropertyControls p={p} role={user.role} />
+          // self-start prevents the grid from stretching the sidebar to match
+          // the (taller) PropertyForm column. Without it the bordered paper
+          // panel runs ~600px past its last button.
+          <div className="self-start">
+            <PropertyControls p={p} role={user.role} />
+          </div>
         ) : (
           <p className="text-sm text-ink-mute">
             Read-only — your role cannot change this property.
           </p>
         )}
       </div>
+
+      {canViewDocs && (
+        <DocumentsPanel
+          propertyId={p.id}
+          canUpload={canUploadDocs}
+          canDelete={canDeleteDocs}
+        />
+      )}
       </div>
     </div>
   );

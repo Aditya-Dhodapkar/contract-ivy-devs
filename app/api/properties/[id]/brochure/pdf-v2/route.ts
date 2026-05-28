@@ -130,7 +130,9 @@ export async function POST(req: Request, { params }: Params) {
   // re-check here. Landscape → drop the hero entirely; the cover falls
   // back to a solid forest-green panel with the vignette + title text.
   const coverDim = p.photoDimensions?.[0];
-  const coverIsLandscape = !!(coverDim && coverDim.w > coverDim.h * 1.05);
+  // Use the same 10% tolerance as the form's orientation classifier so the
+  // brochure and the form agree on what counts as landscape.
+  const coverIsLandscape = !!(coverDim && coverDim.w > coverDim.h * 1.10);
   // Photos[0] is the cover hero; the gallery page consumes photos[1..5].
   const galleryUrls = pages.includes("feature")
     ? (p.photos ?? []).slice(1, 6)

@@ -1,9 +1,9 @@
 // Deliverables #52–#62. A property cannot go live until the essentials are
 // present; if blocked, the system says exactly what's missing. Pure function.
 //
-// #59 (signed mandate uploaded) depends on document storage (Step 3). Until
-// then `hasMandateDoc` resolves false, so the mandate correctly reports as
-// missing — no rework when Step 3 wires the real value in.
+// #59 (signed mandate uploaded) is satisfied by the document storage feature:
+// `lib/repo/documents.ts` `hasMandateDoc(propertyId)` checks for an uploaded
+// mandate document; the publish route awaits that and passes the boolean here.
 
 import type { PropertyRecord } from "./repo/properties";
 

@@ -25,3 +25,10 @@ export function supabase(): SupabaseClient {
 
 export const STORAGE_BUCKET =
   process.env.SUPABASE_STORAGE_BUCKET || "property-photos";
+
+/** Separate bucket for legally sensitive documents (mandates, title deeds,
+ *  deed plans). MUST be configured as PRIVATE in Supabase — anonymous reads
+ *  denied. Downloads are proxied through /api/.../download so access can
+ *  be logged. Never hand a public URL for this bucket to the browser. */
+export const DOCUMENTS_BUCKET =
+  process.env.SUPABASE_DOCUMENTS_BUCKET || "property-documents";

@@ -221,15 +221,17 @@ export function PropertyForm({
     });
   }
 
-  /** Classify a photo's orientation. "landscape" → wider than tall by >5%,
-   *  "portrait" → taller than wide by >5%, "square" → within 5%,
-   *  "unknown" → no dimensions on record (older photos / failed sharp read). */
+  /** Classify a photo's orientation. "landscape" → wider than tall by >10%,
+   *  "portrait" → taller than wide by >10%, "square" → within 10%,
+   *  "unknown" → no dimensions on record (older photos / failed sharp read).
+   *  10% tolerance keeps near-square shots out of "landscape" — a 1068×1014
+   *  PNG is visually square, not landscape, even though it's technically wider. */
   function orientationOf(url: string): "landscape" | "portrait" | "square" | "unknown" {
     const d = dimsByUrl[url];
     if (!d) return "unknown";
     const ratio = d.w / d.h;
-    if (ratio > 1.05) return "landscape";
-    if (ratio < 0.95) return "portrait";
+    if (ratio > 1.10) return "landscape";
+    if (ratio < 0.90) return "portrait";
     return "square";
   }
 
@@ -354,7 +356,7 @@ export function PropertyForm({
   const v = existing ?? ({} as Partial<PropertyRecord>);
 
   return (
-    <form onSubmit={onSubmit} className="max-w-xl space-y-5">
+    <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
       {existing && (
         <p className="text-eyebrow uppercase text-ash">
           Ref {existing.referenceNumber}
@@ -518,7 +520,7 @@ export function PropertyForm({
           <textarea
             name="description"
             defaultValue={v.description}
-            rows={4}
+            rows={9}
             placeholder="The editorial overview — a short story of the home."
             className={field}
           />

@@ -14,9 +14,9 @@ export default async function NewPropertyPage() {
   return (
     <div className="min-h-screen bg-ivory">
       <Header back={{ href: "/properties", label: "Properties" }} />
-      <div className="mx-auto max-w-4xl px-6 py-12">
-      <h1 className="font-serif text-3xl">New property</h1>
-      <p className="mt-1 text-sm text-ink-mute">
+      <div className="mx-auto max-w-5xl px-6 py-12">
+      <h1 className="font-serif text-4xl leading-tight sm:text-5xl">New property</h1>
+      <p className="mt-2 text-sm text-ink-mute">
         A reference number is assigned automatically on save.
       </p>
       <div className="mt-8">

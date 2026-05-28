@@ -33,6 +33,13 @@ export interface Permissions {
    *  it only reads data and renders a one-off file. Owner/Assistant/GM are
    *  authorised per client decision; Agents are not. */
   generateBrochure: boolean;
+  /** Upload / replace a sensitive document (mandate, title deed, deed plan)
+   *  on a property. Scoped because Agents can only touch documents on their
+   *  own assigned properties. GMs are read-only — no upload. */
+  uploadDocument: Scope;
+  /** Delete a sensitive document. Owner-only per the brief — same rule as
+   *  property deletion. Anyone else is blocked server-side. */
+  deleteDocument: boolean;
 }
 
 const MATRIX: Record<Role, Permissions> = {
@@ -47,6 +54,8 @@ const MATRIX: Record<Role, Permissions> = {
     viewReports: true,
     manageUsers: true,
     generateBrochure: true,
+    uploadDocument: "all",
+    deleteDocument: true,
   },
   assistant: {
     viewProperties: "all",
@@ -59,6 +68,8 @@ const MATRIX: Record<Role, Permissions> = {
     viewReports: true,
     manageUsers: false,
     generateBrochure: true,
+    uploadDocument: "all",
+    deleteDocument: false,
   },
   // Read-only across data. Brochure download is the one allowed write-ish
   // action (it creates an output but mutates no records).
@@ -73,6 +84,8 @@ const MATRIX: Record<Role, Permissions> = {
     viewReports: true,
     manageUsers: false,
     generateBrochure: true,
+    uploadDocument: false,
+    deleteDocument: false,
   },
   // Only their own assigned properties. Brochure generation deliberately
   // excluded — Owner/Assistant/GM produce client-facing output.
@@ -87,6 +100,8 @@ const MATRIX: Record<Role, Permissions> = {
     viewReports: false,
     manageUsers: false,
     generateBrochure: false,
+    uploadDocument: "own",
+    deleteDocument: false,
   },
 };
 
