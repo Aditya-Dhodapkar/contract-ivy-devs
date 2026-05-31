@@ -4,9 +4,17 @@
 
 /* Tokens mirrored from the public site (sansiwebsite/app/globals.css). */
 :root {
-  --ivory: 241 236 223;
-  --paper: 250 246 235;
-  --ivory-deep: 231 223 200;
+  /* Switched from warm cream palette to a neutral white/light-gray palette
+     so the back-office canvas reads white. Hierarchy is preserved:
+       --ivory       = page canvas (whitest)
+       --paper       = card / sidebar surface (faint off-white so cards
+                       still have a visible edge against the canvas)
+       --ivory-deep  = inset surfaces like photo placeholders (slightly
+                       darker gray so empty image areas stand out)
+     Gold and ink tokens are unchanged — those carry the brand. */
+  --ivory: 255 255 255;
+  --paper: 250 250 250;
+  --ivory-deep: 240 240 240;
   --gold: 168 138 76;
   --gold-deep: 126 101 51;
   --ink: 20 19 15;
