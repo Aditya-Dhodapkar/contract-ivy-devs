@@ -1,28 +1,66 @@
 "use client";
 
-// Brochure generator. The new per-page pipeline (templates/brochure/*.html +
+// Brochure generator. The per-page pipeline (templates/brochure/*.html +
 // /api/properties/[id]/brochure/pdf-v2) generates every slot internally on
-// the server. From this UI you just press the button and get the PDF.
+// the server. From this UI you:
+//   1. (Optional) Customise which photo goes in which gallery tile on page 5
+//      via the GalleryLayoutEditor. If you don't touch it, the server
+//      auto-arranges photos by aspect-ratio match.
+//   2. Press Generate → ~15s later a six-page PDF downloads.
 //
-// A per-page editable preview (edit headlines/intros before render) is a
-// follow-up — for now, regeneration is fast enough (~10-15s) that hitting
-// the button again gives you a fresh draft if you don't like the first one.
+// Regeneration is cheap (~5 cents each) so the workflow is "press it,
+// look at it, tweak the layout if needed, press it again."
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { GalleryTemplateEditor } from "@/components/GalleryTemplateEditor";
 
 type Status = "idle" | "rendering" | "error" | "done";
 
-export function BrochureEditor({ propertyId }: { propertyId: string }) {
+export interface BrochureEditorProps {
+  propertyId: string;
+  /** All property photos. Used by the gallery layout editor (page 5). */
+  photos: string[];
+  /** Pixel dimensions aligned to `photos` (drives shape labels). */
+  photoDimensions: Array<{ w: number; h: number } | null | undefined>;
+  /** Captions aligned to `photos` — included for completeness; the editor
+   *  doesn't render them, but the parent will once we surface caption editing. */
+  photoCaptions: string[];
+}
+
+export function BrochureEditor({
+  propertyId,
+  photos,
+  photoDimensions,
+}: BrochureEditorProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [lastFilename, setLastFilename] = useState("");
+  // Gallery state from the template editor: which template + photo order.
+  const [galleryTemplateId, setGalleryTemplateId] = useState<string>("");
+  const [galleryOrder, setGalleryOrder] = useState<string[]>([]);
+  const handleGalleryChange = useCallback(
+    (state: { templateId: string; galleryOrder: string[] }) => {
+      setGalleryTemplateId(state.templateId);
+      setGalleryOrder(state.galleryOrder);
+    },
+    []
+  );
+
+  // Gallery page only appears in the brochure when there are ≥3 photos
+  // (cover + at least 2 gallery shots). Don't show the editor otherwise.
+  const showGalleryEditor = photos.length >= 3;
 
   async function generatePdf() {
     setStatus("rendering");
     setError("");
     try {
+      const payload: { galleryTemplateId?: string; galleryOrder?: string[] } = {};
+      if (galleryTemplateId) payload.galleryTemplateId = galleryTemplateId;
+      if (galleryOrder.length > 0) payload.galleryOrder = galleryOrder;
       const res = await fetch(`/api/properties/${propertyId}/brochure/pdf-v2`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -66,6 +104,15 @@ export function BrochureEditor({ propertyId }: { propertyId: string }) {
           a fresh draft.
         </p>
       </div>
+
+      {showGalleryEditor && (
+        <GalleryTemplateEditor
+          propertyId={propertyId}
+          photos={photos}
+          photoDimensions={photoDimensions}
+          onChange={handleGalleryChange}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-4 border-t border-hairline/15 pt-5">
         <button

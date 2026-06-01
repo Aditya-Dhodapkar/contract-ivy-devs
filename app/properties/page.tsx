@@ -80,7 +80,20 @@ export default async function PropertiesPage({
             href={`/properties/${p.id}`}
             className="flex items-center justify-between gap-4 py-4 hover:bg-paper"
           >
-            <div>
+            <div className="flex items-center gap-4">
+              {p.photos?.[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.photos[0]}
+                  alt=""
+                  className="h-16 w-16 flex-shrink-0 object-cover border border-hairline/15 bg-ivory-deep"
+                />
+              ) : (
+                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center border border-hairline/15 bg-ivory-deep text-[10px] uppercase tracking-wide text-ash">
+                  No photo
+                </div>
+              )}
+              <div>
               <p className="font-serif text-xl">{p.title || "Untitled"}</p>
               <p className="text-xs text-ash">
                 {p.referenceNumber} · {[p.city, p.country].filter(Boolean).join(", ") || "—"} · {p.propertyType || "—"}
@@ -88,6 +101,7 @@ export default async function PropertiesPage({
               {p.price != null && (
                 <p className="mt-0.5 text-sm text-ink-mute">{formatKes(p.price)}</p>
               )}
+              </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               <ApprovalBadge approval={p.approval} />

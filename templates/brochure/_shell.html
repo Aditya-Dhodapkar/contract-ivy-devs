@@ -455,10 +455,57 @@
     display: grid;
     gap: 10px;
   }
-  .gallery-grid.count-2 { grid-template-columns: 1fr 1fr; grid-auto-rows: 420px; }
-  .gallery-grid.count-3 { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 210px; }
-  .gallery-grid.count-4 { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 210px; }
-  .gallery-grid.count-5 { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 130px; }
+  /* Row-based masonry gallery. The assembler emits .gallery-row elements
+     with explicit pixel height and per-photo width percentages. Tile
+     aspect ratio equals the photo's natural aspect ratio by construction,
+     so images fill their tiles edge-to-edge — no cropping, no whitespace.
+     A generous inter-row gap (40px) helps the gallery feel like a piece
+     of designed content, not photos crammed together. */
+  .gallery-grid.masonry {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* Page 5 layout: natural top-down flow (intro, gallery, closing). Then
+     the small "additional photography" footnote gets pushed to the bottom
+     of the page via margin-top:auto. This concentrates any leftover
+     vertical whitespace into ONE place (between closing paragraph and
+     footnote, at the bottom of the page) — reads as comfortable editorial
+     margin instead of awkward voids in the middle. */
+  .page-inner.gallery > .small {
+    margin-top: auto;
+  }
+  .gallery-intro,
+  .gallery-closing {
+    max-width: 560px;
+  }
+  .gallery-grid.masonry {
+    margin-top: 28px;
+  }
+  .gallery-closing {
+    margin: 28px 0 0;
+  }
+  .gallery-grid.masonry .gallery-row {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    /* Centred so any row that didn't fill 100% (because MAX_ROW_H kicked
+       in for a single tall photo) sits balanced on the page. */
+    justify-content: center;
+  }
+  .gallery-grid.masonry .ph {
+    height: 100%;
+    /* width comes from inline style: width: NN%; */
+    overflow: hidden;
+    position: relative;
+  }
+  .gallery-grid.masonry .ph img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
   .ph {
     position: relative;
     overflow: hidden;

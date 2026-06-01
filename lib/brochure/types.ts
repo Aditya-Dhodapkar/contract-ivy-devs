@@ -64,7 +64,8 @@ export interface SitePlanSlots {
 
 export interface FeatureSlots {
   headline: string; // ≤8 words; <em> allowed
-  intro: string;    // 30-60 words, property-aware editorial
+  intro: string;    // 30-60 words, sets up the gallery
+  closing: string;  // 25-50 words, wraps up the gallery (appears below photos)
 }
 
 export interface ClosingSlots {

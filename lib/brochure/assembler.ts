@@ -11,6 +11,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { PropertyRecord, PropertyType } from "@/lib/repo/properties";
 import type { PageSlotSet, PageId, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots } from "./types";
+import { layoutGallery, layoutGalleryExplicit, layoutTemplate, suggestSize, enforceMaxOneLarge, type Size, type Variant, type ExplicitLayout } from "./gallery-layout";
+import { getTemplate } from "./templates";
 
 /* ----- helpers used by per-page slot mappers ----- */
 
@@ -119,87 +121,36 @@ export interface AssemblyInput {
     coverHero: string;   // primary photo for the cover background
     localityMap: string; // static-map image for the location page (or "")
     floorPlan: string;   // resolved site/floor plan image for page 4 (or "")
-    galleryPhotos: string[]; // resolved photos[1..N] for page 5 gallery
+    galleryPhotos: string[]; // resolved gallery photos for page 5 (already in tile order if explicit)
     /** Pixel dimensions aligned to galleryPhotos. May contain undefined/null
      *  entries for photos uploaded before dimension capture. */
     galleryDims: Array<{ w: number; h: number } | null | undefined>;
+    /** True when galleryPhotos came from the user's explicit layout choice
+     *  (in which case order = identity); false when the route fell back to
+     *  the default photos.slice(1, 6) and we should auto-arrange. */
+    explicitGalleryOrder?: boolean;
+    /** When explicitGalleryOrder is true: for each gallery photo, the index
+     *  in the property's `photos` array that the URL came from. Used to look
+     *  up the per-photo caption (which is stored aligned to `photos`). */
+    galleryCaptionIndices?: number[];
+    /** Optional per-photo tile size choices, aligned to galleryPhotos. When
+     *  omitted, suggestSize() picks a sensible default per photo. */
+    gallerySizes?: Size[];
+    /** Optional layout variant — which row-grouping strategy to use. */
+    galleryVariant?: Variant;
+    /** Optional explicit layout from the drag-and-drop editor / AI designer.
+     *  When provided, overrides gallerySizes/galleryVariant — the assembler
+     *  renders exactly the rows specified. */
+    galleryExplicitLayout?: ExplicitLayout;
+    /** Optional template id (e.g. "5-hero-quartet"). Highest priority: when
+     *  provided, the assembler renders the gallery using that row partition
+     *  with auto-computed tile dimensions matching photo aspects. */
+    galleryTemplateId?: string;
   };
 }
 
-/** A gallery tile slot: where it sits in the grid + the aspect ratio it
- *  actually occupies on the page. Aspect is used to match photos by shape
- *  so a portrait photo doesn't land in a 2:1 letterbox tile (half-clipped)
- *  and vice versa. */
-type GallerySlot = { spans: string; aspect: number };
-
-/** Predefined tile slots per gallery photo count. The aspect numbers are
- *  computed from page geometry: inner page width 682px (794 page − 2×56
- *  margin) ÷ column count, times the row height set in _shell.html for
- *  that layout. */
-function gallerySlots(count: number): GallerySlot[] {
-  const COL_6 = 682 / 6;
-  const COL_2 = 682 / 2;
-  switch (count) {
-    case 2:
-      // 2-col grid, single row of 420px. Tiles are visually portrait.
-      return [
-        { spans: "", aspect: COL_2 / 420 },
-        { spans: "", aspect: COL_2 / 420 },
-      ];
-    case 3:
-      // 6-col grid, 210px rows. One big portrait-ish tile + two smaller.
-      return [
-        { spans: "grid-column: span 4; grid-row: span 3;", aspect: (4 * COL_6) / (3 * 210) },
-        { spans: "grid-column: span 2; grid-row: span 2;", aspect: (2 * COL_6) / (2 * 210) },
-        { spans: "grid-column: span 2; grid-row: span 1;", aspect: (2 * COL_6) / 210 },
-      ];
-    case 4:
-      // 2×2 grid, 210px rows. All tiles same shape, landscape-ish.
-      return [
-        { spans: "", aspect: COL_2 / 210 },
-        { spans: "", aspect: COL_2 / 210 },
-        { spans: "", aspect: COL_2 / 210 },
-        { spans: "", aspect: COL_2 / 210 },
-      ];
-    default: // 5+: the reference editorial mosaic
-      return [
-        { spans: "grid-column: span 4; grid-row: span 3;", aspect: (4 * COL_6) / (3 * 130) },
-        { spans: "grid-column: span 2; grid-row: span 2;", aspect: (2 * COL_6) / (2 * 130) },
-        { spans: "grid-column: span 2; grid-row: span 1;", aspect: (2 * COL_6) / 130 },
-        { spans: "grid-column: span 3; grid-row: span 2;", aspect: (3 * COL_6) / (2 * 130) },
-        { spans: "grid-column: span 3; grid-row: span 2;", aspect: (3 * COL_6) / (2 * 130) },
-      ];
-  }
-}
-
-/** Greedy assignment: for each slot (in fixed visual order) pick the
- *  remaining photo whose aspect is closest to the slot's aspect in log
- *  space (so 1.0 vs 0.5 is the same distance as 1.0 vs 2.0). Returns the
- *  indices into the original photos array, in slot order. */
-function assignPhotosToSlots(
-  photoAspects: number[],
-  slots: GallerySlot[]
-): number[] {
-  const used = new Set<number>();
-  const out: number[] = [];
-  for (const slot of slots) {
-    let bestIdx = -1;
-    let bestScore = Infinity;
-    for (let i = 0; i < photoAspects.length; i++) {
-      if (used.has(i)) continue;
-      const d = Math.abs(Math.log(photoAspects[i]) - Math.log(slot.aspect));
-      if (d < bestScore) {
-        bestScore = d;
-        bestIdx = i;
-      }
-    }
-    if (bestIdx >= 0) {
-      used.add(bestIdx);
-      out.push(bestIdx);
-    }
-  }
-  return out;
-}
+// Gallery slot geometry + assignment now lives in ./gallery-layout.ts so
+// the client editor can share the same logic when previewing arrangements.
 
 /** Builds the flat {{key}} → value map for one page's interpolation pass.
  *  Data fields shared across every page live at the top; per-page AI slot
@@ -329,48 +280,80 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
     }
     case "feature": {
       const f = (aiSlots.feature ?? {}) as Partial<FeatureSlots>;
-      // Up to 5 gallery photos (route already excluded the cover). Captions
-      // are aligned to the original `photos` array; gallery starts at
-      // photos[1] so caption index = (photo index in gallery) + 1.
+      // Row-based masonry. Tile aspect = photo aspect, always — no crops,
+      // no whitespace. Two paths to a layout:
+      //   1. EXPLICIT (drag-and-drop or AI designer): caller hands us a
+      //      complete row structure; we render it 1:1.
+      //   2. AUTO: we build the rows from per-photo sizes + a variant
+      //      grouping strategy.
       const photoUrls = images.galleryPhotos.slice(0, 5);
       const photoDims = images.galleryDims.slice(0, 5);
-      const count = photoUrls.length;
-      const layoutCount = count >= 5 ? 5 : count;
-      const slots = gallerySlots(count);
       const captions = p.photoCaptions ?? [];
 
-      // Compute each photo's aspect ratio. Unknown dimensions → assume 1.0
-      // (neutral) so the photo can land anywhere without skewing scores.
       const aspects = photoUrls.map((_, i) => {
         const d = photoDims[i];
         return d && d.w && d.h ? d.w / d.h : 1.0;
       });
-      const order = assignPhotosToSlots(aspects, slots);
 
-      const galleryTiles = order
-        .map((photoIdx, slotIdx) => {
-          const url = photoUrls[photoIdx];
-          const slot = slots[slotIdx];
-          const cap = (captions[photoIdx + 1] ?? "").trim();
-          const num = String(slotIdx + 1).padStart(2, "0");
-          const dataCap = cap ? `${num} — ${cap}` : "";
+      const aspectByUrl: Record<string, number> = {};
+      photoUrls.forEach((u, i) => (aspectByUrl[u] = aspects[i]));
 
-          // Decide cover vs contain. If the photo's aspect is reasonably
-          // close to the tile's aspect (within ~1.5× either way) we crop
-          // ("cover") so the tile fills cleanly. If it's badly off (e.g.
-          // a portrait photo in a 2:1 tile) we letterbox ("contain") on
-          // the paper colour so we never half-clip a subject.
-          const photoAspect = aspects[photoIdx];
-          const ratio = photoAspect / slot.aspect;
-          const fit = ratio > 1.55 || ratio < 0.65 ? "contain" : "cover";
+      const rawSizes: Size[] = photoUrls.map((_, i) => {
+        const provided = images.gallerySizes?.[i];
+        return provided ?? suggestSize(aspects[i], i);
+      });
+      const sizes = enforceMaxOneLarge(rawSizes);
+      const variant: Variant = images.galleryVariant ?? "stacked";
 
-          const tileStyle = slot.spans || "";
-          const imgStyle = `width:100%; height:100%; object-fit:${fit}; display:block;`;
-          return (
-            `<div class="ph" data-cap="${escapeHtml(dataCap)}" style="${tileStyle}">` +
-            `<img src="${escapeHtml(url)}" alt="" style="${imgStyle}" />` +
-            `</div>`
-          );
+      // Caption index lookup (see explicit-order logic).
+      const captionIndexFor = (galleryIdx: number): number =>
+        images.explicitGalleryOrder
+          ? (images.galleryCaptionIndices?.[galleryIdx] ?? -1)
+          : galleryIdx + 1;
+
+      // Map url → its index in photoUrls so we can recover caption indices
+      // even after the variant has reshuffled photos into rows.
+      const indexByUrl = new Map<string, number>();
+      photoUrls.forEach((u, i) => indexByUrl.set(u, i));
+
+      // Priority order: template > explicit layout > size+variant fallback.
+      const templateRecord = images.galleryTemplateId
+        ? getTemplate(images.galleryTemplateId)
+        : undefined;
+      const rows = templateRecord
+        ? layoutTemplate(
+            templateRecord,
+            photoUrls.map((url, i) => ({ url, aspect: aspects[i] }))
+          )
+        : images.galleryExplicitLayout
+          ? layoutGalleryExplicit(images.galleryExplicitLayout, aspectByUrl)
+          : layoutGallery(
+              photoUrls.map((url, i) => ({ url, aspect: aspects[i], size: sizes[i] })),
+              variant
+            );
+
+      // Running caption counter (1, 2, 3…) so the caption label reflects
+      // visual reading order, not the photos[] index.
+      let visualIdx = 0;
+      const galleryRows = rows
+        .map((row) => {
+          const items = row.photos
+            .map((p2) => {
+              const origIdx = indexByUrl.get(p2.url) ?? -1;
+              const capIdx = origIdx >= 0 ? captionIndexFor(origIdx) : -1;
+              const cap = capIdx >= 0 ? (captions[capIdx] ?? "").trim() : "";
+              visualIdx++;
+              const num = String(visualIdx).padStart(2, "0");
+              const dataCap = cap ? `${num} — ${cap}` : "";
+              const widthCss = `width: ${p2.widthPct.toFixed(3)}%;`;
+              return (
+                `<div class="ph" data-cap="${escapeHtml(dataCap)}" style="${widthCss}">` +
+                `<img src="${escapeHtml(p2.url)}" alt="" />` +
+                `</div>`
+              );
+            })
+            .join("");
+          return `<div class="gallery-row" style="height: ${row.height.toFixed(1)}px;">${items}</div>`;
         })
         .join("\n      ");
 
@@ -378,8 +361,9 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
         ...base,
         featureHeadline: f.headline ?? "",
         featureIntro: f.intro ?? "",
-        galleryGridClass: `count-${layoutCount}`,
-        galleryTiles,
+        featureClosing: f.closing ?? "",
+        galleryGridClass: "masonry",
+        galleryTiles: galleryRows,
       };
     }
     case "closing": {

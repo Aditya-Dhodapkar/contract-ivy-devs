@@ -42,7 +42,12 @@ export default async function BrochurePage({
         </p>
 
         <div className="mt-10">
-          <BrochureEditor propertyId={id} />
+          <BrochureEditor
+            propertyId={id}
+            photos={p.photos ?? []}
+            photoDimensions={p.photoDimensions ?? []}
+            photoCaptions={p.photoCaptions ?? []}
+          />
         </div>
       </div>
     </div>

@@ -13,12 +13,17 @@ export function ModalShell({
   title,
   children,
   actions,
+  size = "md",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children?: React.ReactNode;
   actions: React.ReactNode;
+  /** Max-width preset. "md" (default, ~448px) for confirmations and short
+   *  forms. "lg" (~720px) for previews / image grids that benefit from
+   *  more horizontal room. */
+  size?: "md" | "lg";
 }) {
   useEffect(() => {
     if (!open) return;
@@ -45,7 +50,10 @@ export function ModalShell({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md border border-hairline/25 bg-paper p-7 shadow-[0_8px_32px_rgba(20,19,15,0.18)]"
+        className={
+          "w-full border border-hairline/25 bg-paper p-7 shadow-[0_8px_32px_rgba(20,19,15,0.18)] " +
+          (size === "lg" ? "max-w-3xl" : "max-w-md")
+        }
       >
         <h2 className="font-serif text-2xl text-ink">{title}</h2>
         <div className="mt-4 text-sm text-ink-mute">{children}</div>

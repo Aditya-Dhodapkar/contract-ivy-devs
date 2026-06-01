@@ -122,6 +122,38 @@ export async function POST(req: Request, { params }: Params) {
   const p = await getProperty(id);
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Optional body — gallery layout sources, listed in priority:
+  //   1. galleryTemplateId + galleryOrder — hand-curated template w/ photo order
+  //   2. galleryExplicitLayout — full row structure (drag-and-drop legacy)
+  //   3. gallerySizes + galleryVariant — per-photo sizes + variant (legacy)
+  //   4. nothing — auto-arrangement from photo aspects
+  const body = (await req.json().catch(() => ({}))) as {
+    galleryOrder?: string[];
+    gallerySizes?: Array<"S" | "M" | "L">;
+    galleryVariant?: "stacked" | "hero" | "compact";
+    galleryExplicitLayout?: {
+      rows: Array<{ photos: Array<{ url: string; size: "S" | "M" | "L" }> }>;
+    };
+    galleryTemplateId?: string;
+  };
+  const galleryTemplateId = typeof body.galleryTemplateId === "string" ? body.galleryTemplateId : undefined;
+  const explicitOrder = Array.isArray(body.galleryOrder) && body.galleryOrder.length > 0;
+  const gallerySizes = Array.isArray(body.gallerySizes)
+    ? body.gallerySizes.filter((s): s is "S" | "M" | "L" => s === "S" || s === "M" || s === "L")
+    : undefined;
+  const galleryVariant =
+    body.galleryVariant === "stacked" ||
+    body.galleryVariant === "hero" ||
+    body.galleryVariant === "compact"
+      ? body.galleryVariant
+      : undefined;
+  const galleryExplicitLayout =
+    body.galleryExplicitLayout &&
+    Array.isArray(body.galleryExplicitLayout.rows) &&
+    body.galleryExplicitLayout.rows.length > 0
+      ? body.galleryExplicitLayout
+      : undefined;
+
   const pages = pagesFor(p);
   // Cover guard: photos[0] is the hero, but a landscape image stretched
   // into the portrait A4 cover crops badly. The form blocks landscape
@@ -133,10 +165,46 @@ export async function POST(req: Request, { params }: Params) {
   // Use the same 10% tolerance as the form's orientation classifier so the
   // brochure and the form agree on what counts as landscape.
   const coverIsLandscape = !!(coverDim && coverDim.w > coverDim.h * 1.10);
-  // Photos[0] is the cover hero; the gallery page consumes photos[1..5].
-  const galleryUrls = pages.includes("feature")
-    ? (p.photos ?? []).slice(1, 6)
-    : [];
+
+  // Build the gallery photo list + matching dimension list + caption indices.
+  // Priority: explicit layout > explicit order > auto.
+  const allPhotos = p.photos ?? [];
+  const galleryUrls: string[] = [];
+  const galleryCaptionIndices: number[] = [];
+  if (pages.includes("feature")) {
+    if (galleryExplicitLayout) {
+      // Collect URLs from explicit layout's rows in order.
+      const seen = new Set<string>();
+      for (const row of galleryExplicitLayout.rows) {
+        for (const p2 of row.photos) {
+          if (seen.has(p2.url)) continue;
+          const idx = allPhotos.indexOf(p2.url);
+          if (idx >= 0) {
+            galleryUrls.push(p2.url);
+            galleryCaptionIndices.push(idx);
+            seen.add(p2.url);
+          }
+        }
+      }
+    } else if (explicitOrder) {
+      for (const url of body.galleryOrder!.slice(0, 5)) {
+        const idx = allPhotos.indexOf(url);
+        if (idx >= 0) {
+          galleryUrls.push(url);
+          galleryCaptionIndices.push(idx);
+        }
+      }
+    } else {
+      for (let i = 1; i < Math.min(allPhotos.length, 6); i++) {
+        galleryUrls.push(allPhotos[i]);
+        galleryCaptionIndices.push(i);
+      }
+    }
+  }
+  const galleryDims = galleryCaptionIndices.map(
+    (idx) => p.photoDimensions?.[idx] ?? null
+  );
+
   const [logo, coverHero, localityMap, floorPlan, ...galleryPhotos] = await Promise.all([
     localImageDataUri("sansi-logo.jpg"),
     coverIsLandscape ? Promise.resolve("") : resolvePhoto(p.photos?.[0]),
@@ -160,12 +228,6 @@ export async function POST(req: Request, { params }: Params) {
     })
   );
 
-  // Dimensions for the gallery photos, aligned to the same slice we resolved.
-  // The assembler uses these to score photos against tile aspect ratios.
-  const galleryDims = pages.includes("feature")
-    ? (p.photoDimensions ?? []).slice(1, 6)
-    : [];
-
   const html = await assembleBrochureHtml({
     property: p,
     aiSlots,
@@ -177,6 +239,12 @@ export async function POST(req: Request, { params }: Params) {
       floorPlan,
       galleryPhotos: galleryPhotos.filter(Boolean),
       galleryDims,
+      explicitGalleryOrder: explicitOrder || !!galleryExplicitLayout || !!galleryTemplateId,
+      galleryCaptionIndices,
+      gallerySizes,
+      galleryVariant,
+      galleryExplicitLayout,
+      galleryTemplateId,
     },
   });
 

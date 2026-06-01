@@ -1,15 +1,22 @@
 <!--
   Page 5 — Gallery / "On the ground".
 
+  Page structure (four sections, evenly distributed):
+    1. Intro section: eyebrow + headline + intro paragraph (above gallery)
+    2. Gallery grid: photo rows
+    3. Closing paragraph: editorial wrap-up (below gallery)
+    4. Footnote: "additional photography…"
+
   Data slots:
     {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
-    {{galleryGridClass}}  — e.g. "count-3" / "count-5"; drives the layout variant.
-    {{galleryTiles}}      — pre-rendered <div class="ph">…</div> tiles with
-                             background-image data URI + data-cap from assembler.
+    {{galleryGridClass}}  — e.g. "count-3 masonry"; drives layout sizing.
+    {{galleryTiles}}      — pre-rendered <div class="gallery-row">…</div>s
+                             with photos at their natural aspects.
 
   AI slots:
     {{featureHeadline}}   — ≤8 words; <em> allowed.
-    {{featureIntro}}      — 30-60 word editor's-note paragraph.
+    {{featureIntro}}      — 30-60 word editor's-note paragraph (above photos).
+    {{featureClosing}}    — 25-50 word editor's-note paragraph (below photos).
 -->
 <section class="page">
   <div class="runhead"><span>{{title}}<span class="dot"></span>Photographs</span><span>{{referenceNumber}}</span></div>
@@ -24,7 +31,9 @@
       {{galleryTiles}}
     </div>
 
-    <p class="small" style="margin-top:18px;">
+    <p class="body gallery-closing">{{featureClosing}}</p>
+
+    <p class="small">
       Additional photography available on request. Drone and twilight imagery
       commissioned for shortlisted buyers.
     </p>
