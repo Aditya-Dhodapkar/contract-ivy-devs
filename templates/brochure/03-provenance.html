@@ -1,0 +1,43 @@
+<!--
+  Page 3 — "Provenance" variant. Two-column body text + 4-step timeline +
+  a single property photo tucked top-right for visual anchor.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{provenancePhoto}}         — first non-cover photo (data URI) — fills
+                                  the top-right portrait/landscape inset.
+                                  When empty, the inset collapses cleanly.
+    {{provenanceTimelineHtml}}  — pre-rendered timeline cells
+
+  AI slots:
+    {{provenanceHeadline}} — ≤6 words; <em>+<br/> allowed
+    {{provenancePara1}}    — 40-60 word origins / build
+    {{provenancePara2}}    — 40-60 word restoration
+    {{provenancePara3}}    — 1-sentence landing
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Provenance</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner pv">
+    <div class="pv-hero">
+      <div class="eyebrow">§ II — Provenance</div>
+      <h1>{{provenanceHeadline}}</h1>
+    </div>
+    <div class="pv-mid">
+      <div class="pv-body">
+        <p>{{provenancePara1}}</p>
+        <p>{{provenancePara2}}</p>
+      </div>
+      <div class="pv-photo" style="background-image:url('{{provenancePhoto}}');"></div>
+    </div>
+    <p class="pv-close">{{provenancePara3}}</p>
+    <div class="pv-timeline">
+      {{provenanceTimelineHtml}}
+    </div>
+    <p class="small pv-bottom">
+      Provenance documentation, original drawings (where preserved) and
+      the restoration brief are available for inspection by qualified
+      buyers under a non-disclosure undertaking.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

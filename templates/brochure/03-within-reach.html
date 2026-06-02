@@ -1,0 +1,33 @@
+<!--
+  Page 3 — "Within reach" variant (no map). Used when the seller doesn't
+  want the exact location pinned, but nearby landmarks + distances are OK.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{nearbyItems}}  — pre-rendered <li> rows from the property's `nearby[]`
+
+  AI slots:
+    {{withinReachHeadline}} — ≤6 words; <em>+<br/> allowed
+    {{withinReachIntro}}    — 30-60 word editor's-note paragraph
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Within reach</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner wr">
+    <div class="wr-hero">
+      <div class="eyebrow">§ II — Within reach</div>
+      <h1>{{withinReachHeadline}}</h1>
+      <p class="body wr-intro">{{withinReachIntro}}</p>
+    </div>
+    <div class="nearby-grand">
+      <p class="label">Within easy reach</p>
+      <ul>
+        {{nearbyItems}}
+      </ul>
+    </div>
+    <p class="small wr-foot">
+      Exact pin shared with shortlisted buyers under the non-disclosure
+      undertaking referenced in § V.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

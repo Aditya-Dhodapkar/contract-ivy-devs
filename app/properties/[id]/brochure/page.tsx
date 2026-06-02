@@ -47,6 +47,7 @@ export default async function BrochurePage({
             photos={p.photos ?? []}
             photoDimensions={p.photoDimensions ?? []}
             photoCaptions={p.photoCaptions ?? []}
+            nearbyCount={p.nearby?.length ?? 0}
           />
         </div>
       </div>

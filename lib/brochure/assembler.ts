@@ -13,6 +13,9 @@ import type { PropertyRecord, PropertyType } from "@/lib/repo/properties";
 import type { PageSlotSet, PageId, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots } from "./types";
 import { layoutGallery, layoutGalleryExplicit, layoutTemplate, suggestSize, enforceMaxOneLarge, type Size, type Variant, type ExplicitLayout } from "./gallery-layout";
 import { getTemplate } from "./templates";
+import type {
+  WithinReachSlots, PhotoEssaySlots, TheSettingSlots, ProvenanceSlots,
+} from "./types";
 
 /* ----- helpers used by per-page slot mappers ----- */
 
@@ -127,7 +130,7 @@ export interface AssemblyInput {
     galleryDims: Array<{ w: number; h: number } | null | undefined>;
     /** True when galleryPhotos came from the user's explicit layout choice
      *  (in which case order = identity); false when the route fell back to
-     *  the default photos.slice(1, 6) and we should auto-arrange. */
+     *  the default photos.slice(1, 8) and we should auto-arrange. */
     explicitGalleryOrder?: boolean;
     /** When explicitGalleryOrder is true: for each gallery photo, the index
      *  in the property's `photos` array that the URL came from. Used to look
@@ -146,6 +149,13 @@ export interface AssemblyInput {
      *  provided, the assembler renders the gallery using that row partition
      *  with auto-computed tile dimensions matching photo aspects. */
     galleryTemplateId?: string;
+    /** Pre-resolved photos for the page-3 photo-essay variant (up to 3
+     *  data URIs from photos[1..3]). Empty when a different page-3 variant
+     *  is in use. */
+    essayPhotos?: string[];
+    /** Single photo for the provenance page (top-right inset). Empty when
+     *  a different page-3 variant is in use OR no non-cover photo exists. */
+    provenancePhoto?: string;
   };
 }
 
@@ -212,6 +222,129 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
         coordsLine,
         mapScale: "≈ 1.5 km across",
         nearbyItems: nearbyItems || `<li style="color:var(--ink-mute)"><span class="n">—</span><span class="name">No nearby places recorded.</span><span class="dist"></span></li>`,
+      };
+    }
+    case "withinReach": {
+      const wr = (aiSlots.withinReach ?? {}) as Partial<WithinReachSlots>;
+      // Reuse the same nearby-row HTML format as page 3 "location" — same
+      // data shape, different surrounding template.
+      const nearbyItems = (p.nearby ?? [])
+        .filter((n) => n.place || n.distance || n.description)
+        .map((n, i) => {
+          const num = String(i + 1).padStart(2, "0");
+          const m = (n.distance || "").trim().match(/^([0-9.,]+)\s*(.*)$/);
+          const distVal = m?.[1] ?? n.distance ?? "—";
+          const distUnit = m?.[2] ?? "";
+          const descHtml = n.description
+            ? `<span>${escapeHtml(n.description)}</span>`
+            : "";
+          return `<li><span class="n">${num}</span><span class="name">${escapeHtml(n.place || "—")}${descHtml}</span><span class="dist">${escapeHtml(distVal)}<small>${escapeHtml(distUnit)}</small></span></li>`;
+        })
+        .join("\n        ");
+      return {
+        ...base,
+        withinReachHeadline: wr.headline ?? "",
+        withinReachIntro: wr.intro ?? "",
+        nearbyItems: nearbyItems || `<li style="color:var(--ink-mute)"><span class="n">—</span><span class="name">No nearby places recorded.</span><span class="dist"></span></li>`,
+      };
+    }
+    case "photoEssay": {
+      const pe = (aiSlots.photoEssay ?? {}) as Partial<PhotoEssaySlots>;
+      const ph = images.essayPhotos ?? [];
+      return {
+        ...base,
+        photoEssayHeadline: pe.headline ?? "",
+        essayPhoto1: ph[0] ?? "",
+        essayPhoto2: ph[1] ?? "",
+        essayPhoto3: ph[2] ?? "",
+        essayFig1Label: pe.fig1Label ?? "",
+        essayFig1Headline: pe.fig1Headline ?? "",
+        essayFig1Body: pe.fig1Body ?? "",
+        essayFig2Label: pe.fig2Label ?? "",
+        essayFig2Headline: pe.fig2Headline ?? "",
+        essayFig2Body: pe.fig2Body ?? "",
+        essayFig3Label: pe.fig3Label ?? "",
+        essayFig3Headline: pe.fig3Headline ?? "",
+        essayFig3Body: pe.fig3Body ?? "",
+      };
+    }
+    case "theSetting": {
+      const ts = (aiSlots.theSetting ?? {}) as Partial<TheSettingSlots>;
+      // Build the 4-cell fact strip. Any cell whose value is empty is
+      // hidden — the assembler simply skips it so the row has 1-4 cells.
+      type Cell = { label: string; value: string; caption: string };
+      const cells: Cell[] = [
+        { label: "Sun",     value: ts.factSunValue ?? "",     caption: ts.factSunCaption ?? "" },
+        { label: "Terrain", value: ts.factTerrainValue ?? "", caption: ts.factTerrainCaption ?? "" },
+        { label: "Sea",     value: ts.factSeaValue ?? "",     caption: ts.factSeaCaption ?? "" },
+        { label: "Season",  value: ts.factSeasonValue ?? "",  caption: ts.factSeasonCaption ?? "" },
+      ].filter((c) => c.value.trim() !== "");
+      const settingFactsHtml = cells
+        .map(
+          (c) =>
+            `<div class="fact"><p class="label">${escapeHtml(c.label)}</p><p class="val">${escapeHtml(c.value)}` +
+            (c.caption.trim() ? `<span>${escapeHtml(c.caption)}</span>` : "") +
+            `</p></div>`
+        )
+        .join("\n      ");
+      return {
+        ...base,
+        theSettingHeadline: ts.headline ?? "",
+        theSettingBody1: ts.bodyPara1 ?? "",
+        theSettingBody2: ts.bodyPara2 ?? "",
+        settingFactsHtml,
+      };
+    }
+    case "provenance": {
+      const pv = (aiSlots.provenance ?? {}) as Partial<ProvenanceSlots>;
+      // Timeline: Built / Originally for / Restored / Title.
+      // Cells with no value collapse — same hide-empty rule as the setting.
+      type Cell = { label: string; value: string; caption: string };
+      const cells: Cell[] = [];
+      if (p.yearBuilt != null) {
+        cells.push({
+          label: "Built",
+          value: String(p.yearBuilt),
+          caption: pv.builtCaption ?? "",
+        });
+      }
+      if ((pv.originallyFor ?? "").trim()) {
+        cells.push({
+          label: "Originally for",
+          value: pv.originallyFor ?? "",
+          caption: pv.originallyForCaption ?? "",
+        });
+      }
+      if (p.yearRestored != null) {
+        cells.push({
+          label: "Restored",
+          value: String(p.yearRestored),
+          caption: pv.restoredCaption ?? "",
+        });
+      }
+      if (p.tenure) {
+        cells.push({
+          label: "Title",
+          value: cap(p.tenure),
+          caption: pv.titleCaption ?? "",
+        });
+      }
+      const provenanceTimelineHtml = cells
+        .map(
+          (c) =>
+            `<div class="pv-step"><p class="label">${escapeHtml(c.label)}</p><p class="val">${escapeHtml(c.value)}` +
+            (c.caption.trim() ? `<span>${escapeHtml(c.caption)}</span>` : "") +
+            `</p></div>`
+        )
+        .join("\n      ");
+      return {
+        ...base,
+        provenanceHeadline: pv.headline ?? "",
+        provenancePara1: pv.para1 ?? "",
+        provenancePara2: pv.para2 ?? "",
+        provenancePara3: pv.para3 ?? "",
+        provenanceTimelineHtml,
+        provenancePhoto: images.provenancePhoto ?? "",
       };
     }
     case "sitePlan": {
@@ -286,8 +419,11 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
       //      complete row structure; we render it 1:1.
       //   2. AUTO: we build the rows from per-photo sizes + a variant
       //      grouping strategy.
-      const photoUrls = images.galleryPhotos.slice(0, 5);
-      const photoDims = images.galleryDims.slice(0, 5);
+      // Gallery is hard-capped at 6 photos (the densest 2-row template).
+      // The pull-quote close beneath is always rendered.
+      const GALLERY_MAX = 6;
+      const photoUrls = images.galleryPhotos.slice(0, GALLERY_MAX);
+      const photoDims = images.galleryDims.slice(0, GALLERY_MAX);
       const captions = p.photoCaptions ?? [];
 
       const aspects = photoUrls.map((_, i) => {
@@ -357,11 +493,21 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
         })
         .join("\n      ");
 
+      // The pull-quote close always renders below the photos now (2-row
+      // gallery is the only mode). Emit the full <p> block only when the
+      // AI produced text — an empty closing would still render the
+      // decorative “ ” marks via the gallery-closing ::before/::after
+      // pseudo-elements, which looks broken.
+      const closingHtml = (f.closing ?? "").trim()
+        ? `<p class="body gallery-closing">${f.closing}</p>`
+        : "";
+
       return {
         ...base,
         featureHeadline: f.headline ?? "",
         featureIntro: f.intro ?? "",
-        featureClosing: f.closing ?? "",
+        featureClosing: f.closing ?? "", // kept for backwards-compat slot lookups
+        featureClosingHtml: closingHtml,
         galleryGridClass: "masonry",
         galleryTiles: galleryRows,
       };
@@ -464,6 +610,14 @@ function pageFilename(page: PageId): string {
       return "02-glance";
     case "location":
       return "03-location";
+    case "withinReach":
+      return "03-within-reach";
+    case "photoEssay":
+      return "03-photo-essay";
+    case "theSetting":
+      return "03-the-setting";
+    case "provenance":
+      return "03-provenance";
     case "sitePlan":
       return "04-site-plan";
     case "feature":

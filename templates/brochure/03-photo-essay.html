@@ -1,0 +1,52 @@
+<!--
+  Page 3 — "Photo essay" variant. Three large photo + caption blocks
+  arranged as a magazine spread. Photos overlap with the gallery (page 5)
+  but are presented in a completely different layout context.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{essayPhoto1}} {{essayPhoto2}} {{essayPhoto3}}  — data-URI photo sources
+
+  AI slots:
+    {{photoEssayHeadline}}        — page headline
+    {{essayFig1Label}}            — "Threshold" / "Interior" etc.
+    {{essayFig1Headline}}         — ≤6 words; <em> allowed
+    {{essayFig1Body}}             — 50-70 word caption
+    (same triple for fig2 + fig3)
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>Photo essay</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner pe">
+    <div class="pe-hero">
+      <div class="eyebrow">§ II — Photo essay</div>
+      <h1>{{photoEssayHeadline}}</h1>
+    </div>
+    <div class="pe-essay">
+      <div class="pe-block">
+        <div class="pe-photo" style="background-image:url('{{essayPhoto1}}');"></div>
+        <div class="pe-cap">
+          <div class="label">Fig. 01 — {{essayFig1Label}}</div>
+          <h3>{{essayFig1Headline}}</h3>
+          <p>{{essayFig1Body}}</p>
+        </div>
+      </div>
+      <div class="pe-block reverse">
+        <div class="pe-photo" style="background-image:url('{{essayPhoto2}}');"></div>
+        <div class="pe-cap">
+          <div class="label">Fig. 02 — {{essayFig2Label}}</div>
+          <h3>{{essayFig2Headline}}</h3>
+          <p>{{essayFig2Body}}</p>
+        </div>
+      </div>
+      <div class="pe-block">
+        <div class="pe-photo" style="background-image:url('{{essayPhoto3}}');"></div>
+        <div class="pe-cap">
+          <div class="label">Fig. 03 — {{essayFig3Label}}</div>
+          <h3>{{essayFig3Headline}}</h3>
+          <p>{{essayFig3Body}}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

@@ -80,6 +80,150 @@ export function PropertyForm({
   }, [showAgentPicker]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Controlled "description" state so the AI draft button can populate it
+  // from outside the textarea's defaultValue lifecycle. Owner can still
+  // edit freely after the AI fills it.
+  const [description, setDescription] = useState<string>(existing?.description ?? "");
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [aiDraftError, setAiDraftError] = useState("");
+  // Per-photo caption AI state. Keyed by photo URL.
+  const [captionLoading, setCaptionLoading] = useState<Record<string, boolean>>({});
+  const [bulkCaptioning, setBulkCaptioning] = useState(false);
+  const [captionAiError, setCaptionAiError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Snapshot what the form currently knows about the property. Used by
+  // the AI draft endpoints (description + caption) so Claude can ground
+  // its prose in whatever the owner has filled in.
+  function snapshotPropertyContext() {
+    const fd = formRef.current ? new FormData(formRef.current) : null;
+    const get = (k: string) => (fd ? String(fd.get(k) ?? "").trim() : "");
+    const num = (k: string) => {
+      const s = get(k);
+      return s ? Number(s) : undefined;
+    };
+    return {
+      title: get("title") || undefined,
+      propertyType: get("propertyType") || undefined,
+      city: get("city") || undefined,
+      country: get("country") || undefined,
+      bedrooms: num("bedrooms"),
+      bathrooms: num("bathrooms"),
+      plotSize: get("plotSize") || undefined,
+      builtArea: get("builtArea") || undefined,
+      facingDirection: get("facingDirection") || undefined,
+      yearBuilt: num("yearBuilt"),
+      yearRestored: num("yearRestored"),
+      restorationNotes: get("restorationNotes") || undefined,
+      tenure: get("tenure") || undefined,
+      siteCondition: get("siteCondition") || undefined,
+      highlights,
+      nearby,
+    };
+  }
+
+  async function draftDescriptionFromAi() {
+    setAiDrafting(true);
+    setAiDraftError("");
+    try {
+      const res = await fetch("/api/properties/draft-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshotPropertyContext()),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        description?: string;
+        error?: string;
+      };
+      if (!res.ok || !j.description) {
+        throw new Error(j.error || `AI draft failed (HTTP ${res.status}).`);
+      }
+      setDescription(j.description);
+    } catch (e) {
+      setAiDraftError((e as Error).message);
+    } finally {
+      setAiDrafting(false);
+    }
+  }
+
+  // Per-photo caption: drafts a 2-4 word tag from Claude's read of the
+  // image. Owner clicks the "✨" button next to a blank caption field.
+  async function aiCaptionOne(photoUrl: string) {
+    setCaptionLoading((m) => ({ ...m, [photoUrl]: true }));
+    setCaptionAiError("");
+    try {
+      const idx = photos.indexOf(photoUrl);
+      const positionHint = idx >= 0 ? `${idx + 1} of ${photos.length}` : undefined;
+      const res = await fetch("/api/properties/draft-caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photoUrl,
+          property: snapshotPropertyContext(),
+          positionHint,
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        caption?: string;
+        error?: string;
+      };
+      if (!res.ok || !j.caption) {
+        throw new Error(j.error || `AI caption failed (HTTP ${res.status}).`);
+      }
+      setCaption(photoUrl, j.caption);
+    } catch (e) {
+      setCaptionAiError((e as Error).message);
+    } finally {
+      setCaptionLoading((m) => {
+        const { [photoUrl]: _drop, ...rest } = m;
+        return rest;
+      });
+    }
+  }
+
+  // Bulk caption: fans the per-photo call out across every photo that
+  // is currently blank (cover excluded — its caption is unused). A
+  // single photo failing doesn't lose the others.
+  async function aiCaptionAllBlanks() {
+    const targets = photos.filter((url, i) => {
+      if (i === 0) return false; // cover caption is unused
+      return !(captionByUrl[url] ?? "").trim();
+    });
+    if (targets.length === 0) return;
+    setBulkCaptioning(true);
+    setCaptionAiError("");
+    try {
+      const res = await fetch("/api/properties/draft-captions-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photoUrls: targets,
+          property: snapshotPropertyContext(),
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        captions?: Array<{ photoUrl: string; caption?: string; error?: string }>;
+        error?: string;
+      };
+      if (!res.ok || !Array.isArray(j.captions)) {
+        throw new Error(j.error || `AI captions failed (HTTP ${res.status}).`);
+      }
+      const failures: string[] = [];
+      for (const c of j.captions) {
+        if (c.caption) setCaption(c.photoUrl, c.caption);
+        else if (c.error) failures.push(c.error);
+      }
+      if (failures.length) {
+        setCaptionAiError(
+          `${failures.length} of ${targets.length} captions failed. Use the ✨ button on individual photos to retry.`
+        );
+      }
+    } catch (e) {
+      setCaptionAiError((e as Error).message);
+    } finally {
+      setBulkCaptioning(false);
+    }
+  }
   const [photos, setPhotos] = useState<string[]>(existing?.photos ?? []);
   // Captions tracked URL→caption so reorder/remove stays trivial. Persisted
   // as an array indexed alongside `photos` at submit time.
@@ -110,9 +254,11 @@ export function PropertyForm({
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
   // Brochure toggles default to true (show by default). Owner unticks per
   // property when the seller asked for the map or plot to be hidden.
-  const [showMapOnBrochure, setShowMapOnBrochure] = useState<boolean>(
-    existing?.showMapOnBrochure !== false
-  );
+  // showMapOnBrochure state was removed when the page-3 variant editor
+  // shipped; the editor's Show map / Hide map toggle (with four
+  // alternatives) is now the single source of truth. The DB column stays
+  // for migration safety but the form no longer touches it — saved
+  // properties retain whatever value was last persisted.
   const [showPlotOnBrochure, setShowPlotOnBrochure] = useState<boolean>(
     existing?.showPlotOnBrochure !== false
   );
@@ -300,6 +446,7 @@ export function PropertyForm({
       bathrooms: f.get("bathrooms") ? Number(f.get("bathrooms")) : undefined,
       yearBuilt: f.get("yearBuilt") ? Number(f.get("yearBuilt")) : undefined,
       yearRestored: f.get("yearRestored") ? Number(f.get("yearRestored")) : undefined,
+      restorationNotes: f.get("restorationNotes") || undefined,
       tenure: f.get("tenure") || undefined,
       shape: f.get("shape") || undefined,
       siteCondition: f.get("siteCondition") || undefined,
@@ -315,7 +462,6 @@ export function PropertyForm({
       facingDirection: f.get("facingDirection") || undefined,
       plotWidthMeters: f.get("plotWidthMeters") ? Number(f.get("plotWidthMeters")) : undefined,
       plotLengthMeters: f.get("plotLengthMeters") ? Number(f.get("plotLengthMeters")) : undefined,
-      showMapOnBrochure,
       showPlotOnBrochure,
       description: f.get("description") || undefined,
       highlights,
@@ -356,7 +502,7 @@ export function PropertyForm({
   const v = existing ?? ({} as Partial<PropertyRecord>);
 
   return (
-    <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
+    <form ref={formRef} onSubmit={onSubmit} className="max-w-2xl space-y-5">
       {existing && (
         <p className="text-eyebrow uppercase text-ash">
           Ref {existing.referenceNumber}
@@ -465,6 +611,22 @@ export function PropertyForm({
         </label>
       </div>
 
+      <label className={label}>
+        <span className={labelText}>What was restored (one sentence, optional)</span>
+        <input
+          name="restorationNotes"
+          defaultValue={v.restorationNotes}
+          placeholder="e.g. Roof, kitchen and all bathrooms; mechanical systems updated."
+          className={field}
+          maxLength={180}
+        />
+        <span className="mt-1 block text-xs text-ash">
+          Used on the brochure's Provenance page (when she picks that page 3
+          option) so the AI describes the restoration accurately instead of
+          guessing. Skip if there was no restoration.
+        </span>
+      </label>
+
       <div className="grid grid-cols-2 gap-4">
         <label className={label}>
           <span className={labelText}>Plot size (land)</span>
@@ -516,14 +678,29 @@ export function PropertyForm({
         <p className="text-eyebrow uppercase text-ash">About this property</p>
 
         <label className={label}>
-          <span className={labelText}>Description</span>
+          <span className="flex items-center justify-between gap-2">
+            <span className={labelText}>Description</span>
+            <button
+              type="button"
+              onClick={draftDescriptionFromAi}
+              disabled={aiDrafting}
+              className="border border-gold-deep px-2 py-1 text-[10px] uppercase tracking-wider text-gold-deep hover:bg-gold-deep hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+              title="Claude reads the rest of the form and drafts 80–120 words of SANSI-voice prose. Owner can edit afterwards."
+            >
+              {aiDrafting ? "Drafting…" : "✨ Let AI draft this"}
+            </button>
+          </span>
           <textarea
             name="description"
-            defaultValue={v.description}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             rows={9}
-            placeholder="The editorial overview — a short story of the home."
+            placeholder="The editorial overview — a short story of the home. Or hit ✨ above and let the AI draft it from the rest of the form."
             className={field}
           />
+          {aiDraftError && (
+            <span className="mt-1 block text-xs text-red-700">{aiDraftError}</span>
+          )}
         </label>
 
         <div>
@@ -608,6 +785,24 @@ export function PropertyForm({
             portrait and landscape gives the best mosaic on page 5. Aim for
             5–8 strong shots: exteriors, interiors, garden, views.
           </p>
+          <p className="mt-1">
+            <span className="font-medium text-ink">Full brochure budget:</span>{" "}
+            upload up to <span className="font-medium">9 photos</span> if you
+            want the option of a magazine-style page 3 too — that variant uses
+            3 dedicated shots beyond the cover and page-5 gallery (1 cover + 3
+            page 3 + 5 page 5 = 9 unique photos, no repeats).
+            {" "}
+            <span
+              className={
+                photos.length >= 9
+                  ? "font-semibold text-ink"
+                  : "font-semibold text-gold-deep"
+              }
+            >
+              {photos.length} / 9 uploaded
+              {photos.length >= 9 ? " — ready for any layout." : "."}
+            </span>
+          </p>
         </div>
         <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-hairline/30 bg-ivory px-4 py-6 text-sm text-ink-mute hover:bg-ivory-deep">
           <span>Click to select photos (multiple)</span>
@@ -624,6 +819,25 @@ export function PropertyForm({
         </label>
         {uploading > 0 && (
           <p className="mt-2 text-xs text-ash">Uploading {uploading}…</p>
+        )}
+        {photos.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={aiCaptionAllBlanks}
+              disabled={bulkCaptioning}
+              className="border border-gold-deep px-3 py-1.5 text-[10px] uppercase tracking-wider text-gold-deep hover:bg-gold-deep hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+              title="Claude reads each photo and writes a 2–4 word editorial tag for every blank caption. Cover photo is skipped (its caption isn't used)."
+            >
+              {bulkCaptioning ? "Captioning…" : "✨ AI-caption all blanks"}
+            </button>
+            <span className="text-[11px] text-ash">
+              Owner can edit any caption afterwards. 2–4 words each.
+            </span>
+          </div>
+        )}
+        {captionAiError && (
+          <p className="mt-2 text-xs text-red-700">{captionAiError}</p>
         )}
         {photos.length > 0 && (
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -712,16 +926,31 @@ export function PropertyForm({
                       ✕
                     </button>
                   </div>
-                  <div className="border-t border-hairline/15 px-2 py-1.5">
+                  <div className="flex items-center gap-1 border-t border-hairline/15 px-2 py-1.5">
                     <input
                       type="text"
                       value={captionByUrl[url] ?? ""}
                       onChange={(e) => setCaption(url, e.target.value)}
-                      placeholder={isPrimary ? "Caption (cover — unused)" : "Caption (optional)"}
+                      placeholder={
+                        isPrimary
+                          ? "Caption (cover — unused)"
+                          : "e.g. Sea-facing terrace"
+                      }
                       disabled={isPrimary}
-                      className="w-full bg-transparent text-[11px] text-ink placeholder:text-ash focus:outline-none disabled:text-ash"
-                      maxLength={80}
+                      className="flex-1 bg-transparent text-[11px] text-ink placeholder:text-ash focus:outline-none disabled:text-ash"
+                      maxLength={40}
                     />
+                    {!isPrimary && (
+                      <button
+                        type="button"
+                        onClick={() => aiCaptionOne(url)}
+                        disabled={!!captionLoading[url] || bulkCaptioning}
+                        title="Let AI write a 2–4 word caption for this photo."
+                        className="shrink-0 text-[11px] text-gold-deep hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {captionLoading[url] ? "…" : "✨"}
+                      </button>
+                    )}
                   </div>
                 </li>
               );
@@ -883,20 +1112,11 @@ export function PropertyForm({
 
       <section className="space-y-3 border-t border-hairline/15 pt-5">
         <p className="text-eyebrow uppercase text-ash">Brochure options</p>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={showMapOnBrochure}
-            onChange={(e) => setShowMapOnBrochure(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-gold-deep"
-          />
-          <span>
-            Include map location on the brochure
-            <span className="ml-1 text-xs text-ash">
-              — untick if the seller asked you to hide the exact location.
-            </span>
-          </span>
-        </label>
+        {/* The "Include map location" checkbox lived here until the page-3
+            variant editor shipped. That editor (Show map / Hide map +
+            four alternatives) is now the single source of truth for page
+            3 — the checkbox would only overlap. The showMapOnBrochure DB
+            column stays for migration safety but is no longer read. */}
         <label className="flex items-start gap-3 text-sm">
           <input
             type="checkbox"

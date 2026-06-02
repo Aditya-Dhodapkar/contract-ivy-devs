@@ -29,6 +29,10 @@ export interface PropertyRecord {
   bathrooms?: number;
   yearBuilt?: number;
   yearRestored?: number;
+  /** Owner's brief note about what was restored — e.g. "Roof, kitchen,
+   *  all bathrooms; mechanical systems updated." Used by the page-3
+   *  "Provenance" brochure variant so the AI doesn't hallucinate scope. */
+  restorationNotes?: string;
   plotSize?: string;
   builtArea?: string;
   /** Compass facing direction — used on the brochure for houses. */
@@ -110,6 +114,7 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     bathrooms: rec.bathrooms,
     year_built: rec.yearBuilt,
     year_restored: rec.yearRestored,
+    restoration_notes: rec.restorationNotes,
     plot_size: rec.plotSize,
     built_area: rec.builtArea,
     facing_direction: rec.facingDirection,
@@ -161,6 +166,7 @@ function fromRow(r: Row): PropertyRecord {
     bathrooms: (r.bathrooms as number) ?? undefined,
     yearBuilt: (r.year_built as number) ?? undefined,
     yearRestored: (r.year_restored as number) ?? undefined,
+    restorationNotes: (r.restoration_notes as string) ?? undefined,
     plotSize: (r.plot_size as string) ?? undefined,
     builtArea: (r.built_area as string) ?? undefined,
     facingDirection: (r.facing_direction as FacingDirection) ?? undefined,

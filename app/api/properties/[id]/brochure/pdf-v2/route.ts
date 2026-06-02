@@ -18,8 +18,12 @@ import { getSession } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import { getProperty } from "@/lib/repo/properties";
 import { pagesFor } from "@/lib/brochure/pages";
+import { allocatePhotos } from "@/lib/brochure/photo-allocator";
 import { assembleBrochureHtml } from "@/lib/brochure/assembler";
-import { draftCoverCopy, draftGlanceCopy, draftLocationCopy, draftSitePlanCopy, draftFeatureCopy, draftClosingCopy } from "@/lib/brochure/claude";
+import {
+  draftCoverCopy, draftGlanceCopy, draftLocationCopy, draftSitePlanCopy, draftFeatureCopy, draftClosingCopy,
+  draftWithinReachCopy, draftPhotoEssayCopy, draftTheSettingCopy, draftProvenanceCopy,
+} from "@/lib/brochure/claude";
 import type { PageSlotSet } from "@/lib/brochure/types";
 
 /** Read a local image from /public and inline as a data URI. Puppeteer's
@@ -135,8 +139,51 @@ export async function POST(req: Request, { params }: Params) {
       rows: Array<{ photos: Array<{ url: string; size: "S" | "M" | "L" }> }>;
     };
     galleryTemplateId?: string;
+    /** Page-3 variant choice. "location" = map + nearby (default).
+     *  The others are seller-privacy alternatives. */
+    page3Variant?: "location" | "within-reach" | "photo-essay" | "the-setting" | "provenance";
   };
-  const galleryTemplateId = typeof body.galleryTemplateId === "string" ? body.galleryTemplateId : undefined;
+  // Default gallery template (used when the editor didn't pick one).
+  // 5-pair-trio is the most balanced 2-row layout for the common case
+  // of 5 gallery photos; for thinner or denser galleries the editor
+  // picks something else.
+  const galleryTemplateId: string =
+    typeof body.galleryTemplateId === "string" && body.galleryTemplateId
+      ? body.galleryTemplateId
+      : "5-pair-trio";
+  const page3Variant: "location" | "within-reach" | "photo-essay" | "the-setting" | "provenance" =
+    body.page3Variant === "within-reach" || body.page3Variant === "photo-essay" ||
+    body.page3Variant === "the-setting" || body.page3Variant === "provenance"
+      ? body.page3Variant
+      : "location";
+
+  // Photo-essay requires at least 9 photos (1 cover + 3 dedicated essay
+  // shots + 5 gallery shots, no repeats). The Page3VariantEditor
+  // disables the option for properties that don't meet the bar — this
+  // is the server-side mirror for direct API callers and stale clients.
+  // Without it, a 6-photo property would get a 2-photo page-5 gallery,
+  // which reads as broken.
+  if (page3Variant === "photo-essay" && (p.photos?.length ?? 0) < 9) {
+    return NextResponse.json(
+      {
+        error:
+          `Photo-essay layout needs at least 9 uploaded photos (1 cover + 3 essay shots + 5 gallery shots, no repeats). This property has ${p.photos?.length ?? 0}. Upload more photos or pick a different page-3 variant.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  // Within-reach also has a data minimum (the editor enforces it client-
+  // side; here's the server-side mirror).
+  if (page3Variant === "within-reach" && (p.nearby?.length ?? 0) < 2) {
+    return NextResponse.json(
+      {
+        error:
+          `"Within reach" needs at least 2 nearby places recorded. This property has ${p.nearby?.length ?? 0}. Add more nearby places or pick a different page-3 variant.`,
+      },
+      { status: 400 }
+    );
+  }
   const explicitOrder = Array.isArray(body.galleryOrder) && body.galleryOrder.length > 0;
   const gallerySizes = Array.isArray(body.gallerySizes)
     ? body.gallerySizes.filter((s): s is "S" | "M" | "L" => s === "S" || s === "M" || s === "L")
@@ -154,7 +201,7 @@ export async function POST(req: Request, { params }: Params) {
       ? body.galleryExplicitLayout
       : undefined;
 
-  const pages = pagesFor(p);
+  const pages = pagesFor(p, page3Variant);
   // Cover guard: photos[0] is the hero, but a landscape image stretched
   // into the portrait A4 cover crops badly. The form blocks landscape
   // photos from being set primary, but pre-existing records (or photos
@@ -166,54 +213,44 @@ export async function POST(req: Request, { params }: Params) {
   // brochure and the form agree on what counts as landscape.
   const coverIsLandscape = !!(coverDim && coverDim.w > coverDim.h * 1.10);
 
-  // Build the gallery photo list + matching dimension list + caption indices.
-  // Priority: explicit layout > explicit order > auto.
-  const allPhotos = p.photos ?? [];
-  const galleryUrls: string[] = [];
-  const galleryCaptionIndices: number[] = [];
-  if (pages.includes("feature")) {
-    if (galleryExplicitLayout) {
-      // Collect URLs from explicit layout's rows in order.
-      const seen = new Set<string>();
-      for (const row of galleryExplicitLayout.rows) {
-        for (const p2 of row.photos) {
-          if (seen.has(p2.url)) continue;
-          const idx = allPhotos.indexOf(p2.url);
-          if (idx >= 0) {
-            galleryUrls.push(p2.url);
-            galleryCaptionIndices.push(idx);
-            seen.add(p2.url);
-          }
-        }
-      }
-    } else if (explicitOrder) {
-      for (const url of body.galleryOrder!.slice(0, 5)) {
-        const idx = allPhotos.indexOf(url);
-        if (idx >= 0) {
-          galleryUrls.push(url);
-          galleryCaptionIndices.push(idx);
-        }
-      }
-    } else {
-      for (let i = 1; i < Math.min(allPhotos.length, 6); i++) {
-        galleryUrls.push(allPhotos[i]);
-        galleryCaptionIndices.push(i);
-      }
-    }
-  }
+  // Allocate property photos to pages via the central allocator. This is
+  // the single source of truth — no inline slice math elsewhere. The
+  // allocator guarantees no photo appears on more than one page (except
+  // the cover, which may optionally repeat on the closing page).
+  const allocation = pages.includes("feature")
+    ? allocatePhotos(p, {
+        page3Variant,
+        coverIsLandscape,
+        explicitGalleryLayout: galleryExplicitLayout,
+        explicitGalleryOrder: explicitOrder ? body.galleryOrder : undefined,
+      })
+    : allocatePhotos(p, {
+        page3Variant,
+        coverIsLandscape,
+      });
+
+  const galleryUrls = allocation.galleryUrls;
+  const galleryCaptionIndices = allocation.galleryCaptionIndices;
   const galleryDims = galleryCaptionIndices.map(
     (idx) => p.photoDimensions?.[idx] ?? null
   );
+  const essayUrls = allocation.page3PhotoUrls;
+  const provenanceUrl = allocation.provenancePhotoUrl;
 
-  const [logo, coverHero, localityMap, floorPlan, ...galleryPhotos] = await Promise.all([
+  const [logo, coverHero, localityMap, floorPlan, essay1, essay2, essay3, provenancePhoto, ...galleryPhotos] = await Promise.all([
     localImageDataUri("sansi-logo.jpg"),
-    coverIsLandscape ? Promise.resolve("") : resolvePhoto(p.photos?.[0]),
+    allocation.coverUrl ? resolvePhoto(allocation.coverUrl) : Promise.resolve(""),
     pages.includes("location")
       ? fetchLocalityMap(p.latitude, p.longitude)
       : Promise.resolve(""),
     pages.includes("sitePlan") ? resolvePhoto(p.floorPlan) : Promise.resolve(""),
+    essayUrls[0] ? resolvePhoto(essayUrls[0]) : Promise.resolve(""),
+    essayUrls[1] ? resolvePhoto(essayUrls[1]) : Promise.resolve(""),
+    essayUrls[2] ? resolvePhoto(essayUrls[2]) : Promise.resolve(""),
+    provenanceUrl ? resolvePhoto(provenanceUrl) : Promise.resolve(""),
     ...galleryUrls.map((u) => resolvePhoto(u)),
   ]);
+  const essayPhotos = [essay1, essay2, essay3].filter(Boolean);
 
   // Draft every included page's slots in parallel.
   const aiSlots: Partial<PageSlotSet> = {};
@@ -222,6 +259,10 @@ export async function POST(req: Request, { params }: Params) {
       if (page === "cover") aiSlots.cover = await draftCoverCopy(p);
       else if (page === "glance") aiSlots.glance = await draftGlanceCopy(p);
       else if (page === "location") aiSlots.location = await draftLocationCopy(p);
+      else if (page === "withinReach") aiSlots.withinReach = await draftWithinReachCopy(p);
+      else if (page === "photoEssay") aiSlots.photoEssay = await draftPhotoEssayCopy(p);
+      else if (page === "theSetting") aiSlots.theSetting = await draftTheSettingCopy(p);
+      else if (page === "provenance") aiSlots.provenance = await draftProvenanceCopy(p);
       else if (page === "sitePlan") aiSlots.sitePlan = await draftSitePlanCopy(p);
       else if (page === "feature") aiSlots.feature = await draftFeatureCopy(p);
       else if (page === "closing") aiSlots.closing = await draftClosingCopy(p);
@@ -245,6 +286,8 @@ export async function POST(req: Request, { params }: Params) {
       galleryVariant,
       galleryExplicitLayout,
       galleryTemplateId,
+      essayPhotos,
+      provenancePhoto,
     },
   });
 

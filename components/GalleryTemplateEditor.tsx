@@ -39,15 +39,27 @@ export interface GalleryTemplateEditorProps {
   photos: string[];
   /** Pixel dimensions aligned to `photos`. */
   photoDimensions: Array<{ w: number; h: number } | null | undefined>;
-  /** Called whenever the selected template OR photo order changes. */
+  /** Called whenever the selected template OR photo order changes. The
+   *  page-3 photo-essay variant consumes photos[1..3], so pass
+   *  `page3Variant` to keep the editor's preview honest about which
+   *  photos are actually available for the gallery. */
   onChange: (state: { templateId: string; galleryOrder: string[] }) => void;
+  /** Page-3 variant (for photo-budget bookkeeping). Photo-essay reserves
+   *  photos[1..3]; provenance reserves photos[1]. Others reserve nothing. */
+  page3Variant?: "location" | "within-reach" | "photo-essay" | "the-setting" | "provenance";
 }
+
+// Page 5 gallery is hard-capped at 2 rows (= 6 photos for the densest
+// trio + trio template). The editor surfaces the actual photo count
+// based on what's left after the cover + page-3 reservations.
+const GALLERY_MAX = 6;
 
 export function GalleryTemplateEditor({
   propertyId,
   photos,
   photoDimensions,
   onChange,
+  page3Variant = "location",
 }: GalleryTemplateEditorProps) {
   // Client-side dimension detection (older photos missing server dims).
   const [detectedDims, setDetectedDims] = useState<Record<string, { w: number; h: number }>>({});
@@ -104,14 +116,47 @@ export function GalleryTemplateEditor({
     };
   }, [photos, photoDimensions, detectedDims, propertyId]);
 
-  // Gallery photos = photos[1..5] (cover is page 1, separate).
-  const initialOrder = useMemo(() => photos.slice(1, 6), [photos]);
+  // Build the gallery photo pool. Photos consumed by the page-3 variant
+  // are skipped here so the layout preview reflects exactly what will
+  // print on page 5 — no overlap with page 3.
+  const reservedIndices = useMemo(() => {
+    const s = new Set<number>();
+    s.add(0); // cover always reserved
+    if (page3Variant === "photo-essay") {
+      [1, 2, 3].forEach((i) => s.add(i));
+    } else if (page3Variant === "provenance") {
+      s.add(1);
+    }
+    return s;
+  }, [page3Variant]);
+
+  // Gallery uses every remaining photo up to the 6-photo hard cap. With
+  // 9 uploads + photo-essay, this yields cover(1) + essay(3) + gallery(5)
+  // = 9 shown, no repeats — the "see every photo" guarantee for the
+  // most-photo-dense brochure.
+  const initialOrder = useMemo(() => {
+    const out: string[] = [];
+    for (let i = 0; i < photos.length && out.length < GALLERY_MAX; i++) {
+      if (reservedIndices.has(i)) continue;
+      out.push(photos[i]);
+    }
+    return out;
+  }, [photos, reservedIndices]);
+
   const [galleryOrder, setGalleryOrder] = useState<string[]>(initialOrder);
+
+  // Re-slice when the page-3 variant changes — the photo pool may shift.
+  useEffect(() => {
+    setGalleryOrder(initialOrder);
+  }, [initialOrder]);
+
   const photoCount = galleryOrder.length;
 
-  // Templates that match this photo count + pass the practicality filter.
+  // Templates that match this photo count exactly. Filtered to 2-row max
+  // (rows.length <= 2). 3-row templates were removed from the registry
+  // but this guards against any stragglers.
   const fittingTemplates = useMemo(() => {
-    const candidates = templatesForCount(photoCount);
+    const candidates = templatesForCount(photoCount).filter((t) => t.rows.length <= 2);
     const inputs = galleryOrder.map((url) => ({ url, aspect: aspectByUrl[url] ?? 1.0 }));
     return candidates.filter((t) => templateFits(t, inputs));
   }, [photoCount, galleryOrder, aspectByUrl]);
@@ -214,6 +259,62 @@ export function GalleryTemplateEditor({
         photo goes where, reorder them in the property's photo grid (Edit
         details → Photos → ← →).
       </p>
+
+      {/* Photo-coverage hint — tells the owner exactly how many of her
+          uploads will appear in the brochure, given the current page-3
+          variant and the 6-photo gallery cap. */}
+      {(() => {
+        const totalUploads = photos.length;
+        const coverShown = totalUploads >= 1 ? 1 : 0;
+        const page3Shown =
+          page3Variant === "photo-essay" ? Math.min(3, Math.max(0, totalUploads - 1)) :
+          page3Variant === "provenance"  ? Math.min(1, Math.max(0, totalUploads - 1)) : 0;
+        const galleryShown = photoCount;
+        const totalShown = coverShown + page3Shown + galleryShown;
+        const unused = Math.max(0, totalUploads - totalShown);
+        const allShown = unused === 0 && totalUploads > 0;
+        return (
+          <div
+            className={
+              "mt-6 border-l-2 px-3 py-2 " +
+              (allShown
+                ? "border-green-600/60 bg-green-50/40"
+                : "border-gold-deep/60 bg-ivory-deep/40")
+            }
+          >
+            <p className="text-[11px] uppercase tracking-wider text-ash">
+              Photo coverage
+            </p>
+            <p className="mt-1 text-xs text-ink-soft">
+              <span className="font-semibold text-ink">
+                {totalShown} of {totalUploads}
+              </span>{" "}
+              uploaded photo{totalUploads === 1 ? "" : "s"} shown in this
+              brochure
+              {allShown ? " — every photo is used." : "."}{" "}
+              <span className="text-ash">
+                (1 cover{page3Shown > 0 ? ` + ${page3Shown} on page 3` : ""}
+                {" + "}
+                {galleryShown} on page 5)
+              </span>
+              {unused > 0 && (
+                <span className="mt-1 block">
+                  <span className="font-semibold text-gold-deep">
+                    {unused} photo{unused === 1 ? "" : "s"}
+                  </span>{" "}
+                  won&apos;t appear.
+                  {page3Variant !== "photo-essay" && totalUploads - 1 - galleryShown > 0 && (
+                    <>
+                      {" "}Switch page 3 to <em>Photo essay</em> to use
+                      {" "}{Math.min(3, totalUploads - 1 - galleryShown)} more.
+                    </>
+                  )}
+                </span>
+              )}
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Template cards */}
       <div className="mt-5">

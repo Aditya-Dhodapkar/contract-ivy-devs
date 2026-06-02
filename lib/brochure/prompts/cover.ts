@@ -73,7 +73,7 @@ export const COVER_TOOL = {
     type: "object" as const,
     properties: {
       eyebrow: { type: "string", description: "3-6 words; the defining quality of the property." },
-      title:   { type: "string", description: "1-2 line headline; <br/> and <em> tags allowed." },
+      title:   { type: "string", description: "MAX 6 words / 50 chars (must fit ≤2 lines at 96pt serif). <br/> + <em> allowed." },
       sub:     { type: "string", description: "~30-50 words, magazine voice, anchored in supplied facts." },
     },
     required: ["eyebrow", "title", "sub"],

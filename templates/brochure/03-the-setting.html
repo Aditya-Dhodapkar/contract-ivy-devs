@@ -1,0 +1,36 @@
+<!--
+  Page 3 — "The setting" variant. Atmospheric italic prose + 4-cell fact
+  strip. Zero named geography. Used for maximum-privacy properties.
+
+  Data slots:
+    {{title}} {{referenceNumber}} {{pageNumber}} {{pageTotal}}
+    {{settingFactsHtml}}  — pre-rendered fact-strip cells (assembler hides
+                            empty ones)
+
+  AI slots:
+    {{theSettingHeadline}} — ≤6 words; <em>+<br/> allowed
+    {{theSettingBody1}}    — ~60 word italic editorial
+    {{theSettingBody2}}    — ~60 word italic editorial
+-->
+<section class="page">
+  <div class="runhead"><span>{{title}}<span class="dot"></span>The setting</span><span>{{referenceNumber}}</span></div>
+  <div class="page-inner ts">
+    <div class="ts-hero">
+      <div class="eyebrow">§ II — The setting</div>
+      <h1>{{theSettingHeadline}}</h1>
+    </div>
+    <div class="ts-body">
+      <p>{{theSettingBody1}}</p>
+      <p>{{theSettingBody2}}</p>
+    </div>
+    <hr class="ts-rule" />
+    <div class="ts-facts">
+      {{settingFactsHtml}}
+    </div>
+    <p class="small ts-bottom">
+      Exact address shared with shortlisted buyers under a non-disclosure
+      undertaking.
+    </p>
+  </div>
+  <div class="runfoot"><span>SANSI AFRICA  ·  PRIVATE &amp; CONFIDENTIAL</span><span>{{pageNumber}} / {{pageTotal}}</span></div>
+</section>

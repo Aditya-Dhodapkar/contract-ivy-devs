@@ -10,7 +10,16 @@ import { LOCATION_SYSTEM_PROMPT, buildLocationUserPrompt, LOCATION_TOOL } from "
 import { SITE_PLAN_SYSTEM_PROMPT, buildSitePlanUserPrompt, SITE_PLAN_TOOL } from "./prompts/site-plan";
 import { FEATURE_SYSTEM_PROMPT, buildFeatureUserPrompt, FEATURE_TOOL } from "./prompts/feature";
 import { CLOSING_SYSTEM_PROMPT, buildClosingUserPrompt, CLOSING_TOOL } from "./prompts/closing";
-import type { BrochureSlots, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots } from "./types";
+import { WITHIN_REACH_SYSTEM_PROMPT, buildWithinReachUserPrompt, WITHIN_REACH_TOOL } from "./prompts/within-reach";
+import { PHOTO_ESSAY_SYSTEM_PROMPT, buildPhotoEssayUserPrompt, PHOTO_ESSAY_TOOL } from "./prompts/photo-essay";
+import { THE_SETTING_SYSTEM_PROMPT, buildTheSettingUserPrompt, THE_SETTING_TOOL } from "./prompts/the-setting";
+import { PROVENANCE_SYSTEM_PROMPT, buildProvenanceUserPrompt, PROVENANCE_TOOL } from "./prompts/provenance";
+import { DESCRIPTION_SYSTEM_PROMPT, buildDescriptionUserPrompt, DESCRIPTION_TOOL } from "./prompts/description";
+import { CAPTION_SYSTEM_PROMPT, buildCaptionUserPrompt, CAPTION_TOOL } from "./prompts/caption";
+import type {
+  BrochureSlots, CoverSlots, GlanceSlots, LocationSlots, SitePlanSlots, FeatureSlots, ClosingSlots,
+  WithinReachSlots, PhotoEssaySlots, TheSettingSlots, ProvenanceSlots,
+} from "./types";
 import type { PropertyRecord } from "@/lib/repo/properties";
 
 let cached: Anthropic | null = null;
@@ -142,6 +151,142 @@ export async function draftFeatureCopy(p: PropertyRecord): Promise<FeatureSlots>
     throw new Error("Claude did not return feature copy in the expected format.");
   }
   return block.input as FeatureSlots;
+}
+
+/* ----------- Page-3 alternatives (when the map is suppressed) ----------- */
+
+export async function draftWithinReachCopy(p: PropertyRecord): Promise<WithinReachSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 512,
+    temperature: 0.4,
+    system: WITHIN_REACH_SYSTEM_PROMPT,
+    tools: [WITHIN_REACH_TOOL],
+    tool_choice: { type: "tool", name: WITHIN_REACH_TOOL.name },
+    messages: [{ role: "user", content: buildWithinReachUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== WITHIN_REACH_TOOL.name) {
+    throw new Error("Claude did not return within-reach copy in the expected format.");
+  }
+  return block.input as WithinReachSlots;
+}
+
+export async function draftPhotoEssayCopy(p: PropertyRecord): Promise<PhotoEssaySlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    temperature: 0.4,
+    system: PHOTO_ESSAY_SYSTEM_PROMPT,
+    tools: [PHOTO_ESSAY_TOOL],
+    tool_choice: { type: "tool", name: PHOTO_ESSAY_TOOL.name },
+    messages: [{ role: "user", content: buildPhotoEssayUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== PHOTO_ESSAY_TOOL.name) {
+    throw new Error("Claude did not return photo-essay copy in the expected format.");
+  }
+  return block.input as PhotoEssaySlots;
+}
+
+export async function draftTheSettingCopy(p: PropertyRecord): Promise<TheSettingSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    temperature: 0.4,
+    system: THE_SETTING_SYSTEM_PROMPT,
+    tools: [THE_SETTING_TOOL],
+    tool_choice: { type: "tool", name: THE_SETTING_TOOL.name },
+    messages: [{ role: "user", content: buildTheSettingUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== THE_SETTING_TOOL.name) {
+    throw new Error("Claude did not return the-setting copy in the expected format.");
+  }
+  return block.input as TheSettingSlots;
+}
+
+export async function draftProvenanceCopy(p: PropertyRecord): Promise<ProvenanceSlots> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    temperature: 0.4,
+    system: PROVENANCE_SYSTEM_PROMPT,
+    tools: [PROVENANCE_TOOL],
+    tool_choice: { type: "tool", name: PROVENANCE_TOOL.name },
+    messages: [{ role: "user", content: buildProvenanceUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== PROVENANCE_TOOL.name) {
+    throw new Error("Claude did not return provenance copy in the expected format.");
+  }
+  return block.input as ProvenanceSlots;
+}
+
+/** Owner-facing: draft an 80-120 word listing description from the rest
+ *  of the form's fields. Surfaced via PropertyForm's "✨ Let AI draft this"
+ *  button next to the description textarea. Returns plain prose — no
+ *  HTML, no markdown — so it drops straight into the existing textarea. */
+export async function draftDescription(
+  p: Partial<PropertyRecord>
+): Promise<string> {
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    temperature: 0.5,
+    system: DESCRIPTION_SYSTEM_PROMPT,
+    tools: [DESCRIPTION_TOOL],
+    tool_choice: { type: "tool", name: DESCRIPTION_TOOL.name },
+    messages: [{ role: "user", content: buildDescriptionUserPrompt(p) }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== DESCRIPTION_TOOL.name) {
+    throw new Error("Claude did not return a description in the expected format.");
+  }
+  const input = block.input as { description?: string };
+  return (input.description ?? "").trim();
+}
+
+/** Owner-facing: draft a single 2-4 word photo caption. Caller fetches
+ *  the photo as a base64 data URL so Claude can actually see it (the
+ *  Anthropic SDK accepts image blocks alongside text content). */
+export async function draftCaption(
+  property: Partial<PropertyRecord>,
+  photoDataUrl: string,
+  positionHint?: string
+): Promise<string> {
+  // Pull mime type + raw base64 out of a data URL like:
+  //   data:image/jpeg;base64,/9j/4AAQ…
+  const m = /^data:(image\/[a-zA-Z0-9+.\-]+);base64,(.+)$/.exec(photoDataUrl.trim());
+  if (!m) {
+    throw new Error("draftCaption needs a base64 data URL for the photo.");
+  }
+  const mediaType = m[1] as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  const data = m[2];
+
+  const res = await client().messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 256,
+    temperature: 0.5,
+    system: CAPTION_SYSTEM_PROMPT,
+    tools: [CAPTION_TOOL],
+    tool_choice: { type: "tool", name: CAPTION_TOOL.name },
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data } },
+          { type: "text", text: buildCaptionUserPrompt(property, { positionHint }) },
+        ],
+      },
+    ],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use" || block.name !== CAPTION_TOOL.name) {
+    throw new Error("Claude did not return a caption in the expected format.");
+  }
+  const input = block.input as { caption?: string };
+  return (input.caption ?? "").trim();
 }
 
 export async function draftClosingCopy(p: PropertyRecord): Promise<ClosingSlots> {

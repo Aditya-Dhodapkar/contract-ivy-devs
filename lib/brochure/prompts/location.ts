@@ -27,6 +27,11 @@ HARD RULES
 - It is fine to write generally about Kenya / the city if the data is thin.
 - Do not promise things you can't substantiate ("walking distance to X" only
   if X is in nearby with a short distance).
+- HEADLINE LENGTH IS A HARD CONSTRAINT: max 6 words, max 50 characters
+  (including spaces and any <br/> tag). The headline renders at 60-72pt
+  serif on the page — anything longer wraps to a third line which is
+  visually unacceptable. Aim for 3-5 words. Prefer two short clauses
+  separated by a manual <br/> over one long clause.
 
 OUTPUT
 Return JSON only, matching the tool schema. No commentary.
@@ -70,7 +75,10 @@ export function buildLocationUserPrompt(p: PropertyRecord): string {
     "NOW WRITE PAGE 3 FOR THIS PROPERTY:",
     lines.join("\n"),
     "",
-    "headline: 1-2 line poetic statement about the place, <em> + <br/> allowed.",
+    "headline: MAX 6 WORDS / 50 CHARACTERS. Wraps to at most 2 lines.",
+    "  <em> + <br/> allowed. Two short clauses split by <br/> is ideal.",
+    "  GOOD: 'On the quiet side.' / 'Where Mykonos exhales.' / 'North-facing,<br/>by design.'",
+    "  BAD: 'Where the Aegean meets the sand, and the island exhales.' (TOO LONG)",
     "intro: ~50 words evoking the setting, anchored only in city / country /",
     "  nearby data. Two sentences is ideal.",
     "closing: 50-80 words, character of the neighbourhood, what daily life",
@@ -84,7 +92,7 @@ export const LOCATION_TOOL = {
   input_schema: {
     type: "object" as const,
     properties: {
-      headline: { type: "string", description: "1-2 line poetic statement, <em> + <br/> allowed." },
+      headline: { type: "string", description: "MAX 6 words / 50 chars (must fit ≤2 lines at 60-72pt serif). <em> + <br/> allowed." },
       intro:    { type: "string", description: "~50 words above the map; two sentences." },
       closing:  { type: "string", description: "50-80 words, character of the neighbourhood." },
     },

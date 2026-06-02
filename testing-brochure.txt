@@ -1,0 +1,147 @@
+TESTING NOTES — BROCHURE FLOW
+==============================
+Running log of thoughts captured while testing the brochure generator end-to-end.
+Format: dated entry, short note, any context. Newest entries appended at the bottom.
+
+
+[2026-06-01] Description field — add an "AI write this for me" toggle
+--------------------------------------------------------------------
+The PropertyForm "Description" field currently requires the owner to type
+the property description by hand. Add a small toggle / button next to the
+field that says something like "Let AI draft this".
+
+When toggled on, AI uses all the other inputs already on the form
+(location, city, country, type, bedrooms, bathrooms, plot/built area,
+year built, highlights, site condition, nearby places, etc.) to cook up
+a nice description in the SANSI editorial voice. Owner can then edit or
+regenerate.
+
+Why: saves owner time, keeps voice consistent across listings, and the
+property data is rich enough that a draft will land close to final.
+
+Open questions for later:
+- Streaming vs one-shot generation in the UI?
+- Should it run automatically once enough fields are filled, or only on
+  explicit button press? (Probably explicit — surprises in forms are bad.)
+- Length target — match the existing description norm? Probably 80-120
+  words.
+
+
+[2026-06-01] Photo captions — should AI auto-fill blanks?
+---------------------------------------------------------
+Current behaviour confirmed by reading the code:
+- Page 5 gallery: if the owner leaves "Caption (optional)" blank, the
+  photo renders WITHOUT a caption. No AI fallback. (See
+  lib/brochure/assembler.ts:477 — empty caption → empty data-cap → CSS
+  ::after shows nothing.)
+- Page 3 photo-essay variant: separate layer. figLabel / figHeadline /
+  figBody are all AI-written from the photo + property data each time.
+  Owner-typed photoCaptions[] are NOT consulted here.
+
+Product question (worth deciding, currently NO):
+Should the gallery have an AI-caption fallback for empty fields? E.g.
+the AI writes "Coral-lime walls, makuti thatch" for an unfilled photo.
+
+Length rule for any AI-written captions: keep them to JUST 2-4 words.
+Short editorial tags, not sentences. Examples: "Sea-facing terrace",
+"Open-plan kitchen", "Coral walls", "Morning light", "Garden, mature
+palms". Same constraint should apply to manually typed captions too —
+update the form placeholder to nudge owners toward that length.
+
+
+[2026-06-01] Redundant "Include map location on the brochure" checkbox
+-----------------------------------------------------------------------
+PropertyForm's "Brochure options" section has a legacy checkbox
+"Include map location on the brochure". It pre-dates the page-3 variant
+editor and is now mostly dead weight.
+
+Current behaviour (lib/brochure/pages.ts:30-50):
+- Checkbox only does anything when the editor variant is still the
+  default "location". In that case unticking it SKIPS page 3 entirely.
+- The moment the editor picks any alternative (within-reach, photo-
+  essay, the-setting, provenance), the checkbox is silently overridden.
+
+Why it's now redundant: the four alternatives all cover the "hide the
+exact pin" use case AND fill the page with something useful. The old
+"unchecked → no page 3" path is covered by picking an alternative.
+
+Two paths:
+- A. Remove the checkbox (recommended). Editor becomes single source of
+     truth for page 3. Keep the DB column for migration safety, just
+     stop reading it.
+- B. Repurpose it as "Skip the location page entirely" and make it work
+     across all variants (not just the default). At least gives it a
+     clear, non-overlapping job.
+
+Decision pending. Default to A unless a use case for "skip page 3
+entirely" comes up.
+
+
+[2026-06-01] Page 5 gallery — row count, spacing, and a layout toggle
+---------------------------------------------------------------------
+Observations from the first end-to-end test of page 5:
+
+1. Row count regression.
+   I thought we'd previously decided page 5 should never exceed 2 rows.
+   The current layout editor only offers 3-row options (PAIR · PAIR ·
+   TRIO, PAIR · TRIO · PAIR, TRIO · PAIR · PAIR — all 7-photo, 3-row).
+   The 2-row "pair + trio" (5-photo) variant is missing from the picker.
+   Either it was removed and shouldn't have been, OR the rule was never
+   correctly enforced.
+
+2. Horizontal spacing too tight.
+   In the rendered PDF, photos sit too close to each other side-by-side
+   while the page borders have noticeable margin on the left/right.
+   Push some of that margin INTO the gap between photos so the row
+   breathes. Photos should not feel like they're being squeezed against
+   each other.
+
+3. Vertical spacing — opposite problem.
+   Row-to-row gaps are too LARGE — by the third row, content runs into
+   the footer area (almost cutting it out). Reduce vertical row gap by
+   a small amount so the trio doesn't push the footer.
+
+4. NEW: Layout-level option — 2 rows vs 3 rows.
+   Add a top-level toggle on the gallery layout page:
+
+     • 2 rows (~5 photos) — leaves room at the bottom for a pull-quote
+       / closing editorial element (which we'd previously shipped and
+       should be reintroduced when 2-row is picked).
+     • 3 rows (~7 photos) — more photos, no quote.
+
+   Surface the tradeoff in the UI: "Pick 2 rows for a pull-quote close;
+   pick 3 rows if you have stronger photo coverage."
+
+5. CORE RULE: photos must never repeat across pages.
+   I generated a brochure where page 3 (photo-essay variant) showed the
+   same 3 shots that also appeared on page 5. This is unacceptable —
+   reads as filler, undermines the property's depth.
+
+   Rule for ALL templates going forward:
+     - photos[0] (the hero / cover) MAY appear on page 1 only, and may
+       optionally repeat on the closing page (if she wants). Nowhere
+       else.
+     - Every other photo appears at most ONCE across the brochure.
+     - When a page-3 variant uses N specific photos, those N must be
+       removed from page-5's eligibility pool. Same goes for any future
+       variant that consumes photos.
+
+   Status: a partial fix shipped (gallery slice shifts to photos[4..10]
+   when photo-essay is selected, so no overlap with the essay's
+   photos[1..3]). Verify on a fresh regenerate before closing this out.
+   The rule needs to be encoded as a single "photo budget allocator"
+   helper rather than per-route slice math, otherwise future variants
+   will silently overlap again.
+
+Pros: every photo gets a tasteful editorial caption with zero owner
+effort; matches the same "AI writes it for me" pattern as the
+description toggle thought above.
+Pros (cont.): consistency with page 3 photo-essay (which already does
+this).
+Cons: AI may caption inaccurately (it's only seeing the photo, no
+specific knowledge of which room / which view). Owner must still review.
+Cons: more AI calls per brochure → marginal cost + latency.
+
+If we ship it: same toggle UX as the description field. Per-photo
+"AI write this caption" button next to each blank field, or a single
+"AI caption all blanks" button at the top of the photo grid.

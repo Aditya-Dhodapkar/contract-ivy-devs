@@ -58,7 +58,7 @@ export async function POST(_req: Request, { params }: Params) {
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const allPhotos = p.photos ?? [];
-  const galleryUrls = allPhotos.slice(1, 6);
+  const galleryUrls = allPhotos.slice(1, 8); // photos[1..7] — cover is photos[0]
   if (galleryUrls.length === 0) {
     return NextResponse.json({ error: "No gallery photos to design with." }, { status: 400 });
   }

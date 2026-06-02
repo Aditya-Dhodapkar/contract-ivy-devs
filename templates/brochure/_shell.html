@@ -89,6 +89,10 @@
     color: var(--ink-soft);
     text-wrap: pretty;
   }
+  /* Editorial in-line highlight for body prose across all pages. Heliconia
+     red strong enough to pop against ink-soft body without shouting.
+     Page-specific overrides (e.g. .ts-body em) can refine per-context. */
+  .body em { color: var(--berry); font-style: normal; font-weight: 600; }
   .small {
     font-size: 11px;
     line-height: 1.55;
@@ -357,6 +361,215 @@
     margin-left: 4px;
   }
 
+  /* === PAGE 3 ALTERNATIVES — Within reach (no map) === */
+  .page-inner.wr h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .page-inner.wr h1 em { font-style: italic; color: var(--accent); }
+  .wr-hero { max-width: 540px; }
+  .wr-intro { margin-top: 14px; max-width: 480px; }
+  .nearby-grand { margin-top: 56px; flex-grow: 1; display: flex; flex-direction: column; }
+  .nearby-grand .label { padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+  .nearby-grand ul { list-style: none; margin: 0; padding: 0; }
+  .nearby-grand li {
+    display: grid; grid-template-columns: 40px 1fr auto;
+    gap: 24px; align-items: baseline;
+    padding: 22px 0; border-bottom: 1px solid var(--rule);
+  }
+  .nearby-grand .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .12em; color: var(--accent);
+  }
+  .nearby-grand .name {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400; font-size: 26px; color: var(--ink); line-height: 1.1;
+  }
+  .nearby-grand .name span {
+    display: block; margin-top: 6px;
+    font-family: 'Inter', sans-serif; font-weight: 300;
+    font-size: 13px; line-height: 1.5; color: var(--ink-soft);
+  }
+  .nearby-grand .dist {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400; font-size: 32px; color: var(--ink); line-height: 1;
+    white-space: nowrap;
+  }
+  .nearby-grand .dist small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .14em; color: var(--ink-mute);
+    margin-left: 4px;
+  }
+  .wr-foot {
+    margin-top: 28px; padding-top: 18px;
+    border-top: 1px solid var(--rule); max-width: 480px;
+  }
+
+  /* === PAGE 3 ALTERNATIVES — Photo essay === */
+  .page-inner.pe h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .page-inner.pe h1 em { font-style: italic; color: var(--accent); }
+  .pe-hero { max-width: 540px; }
+  .pe-essay { margin-top: 32px; flex-grow: 1; display: flex; flex-direction: column; gap: 28px; }
+  .pe-block { display: grid; grid-template-columns: 1.7fr 1fr; gap: 28px; align-items: stretch; }
+  .pe-block.reverse { grid-template-columns: 1fr 1.7fr; }
+  .pe-block.reverse .pe-photo { order: 2; }
+  .pe-block.reverse .pe-cap { order: 1; }
+  .pe-photo {
+    height: 240px;
+    background-size: cover; background-position: center;
+    background-color: var(--paper-2);
+  }
+  .pe-cap { display: flex; flex-direction: column; justify-content: center; padding: 6px 4px; }
+  .pe-cap .label { color: var(--accent); }
+  .pe-cap h3 {
+    margin: 10px 0 8px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400; font-size: 22px; line-height: 1.15; color: var(--ink);
+  }
+  .pe-cap h3 em { font-style: italic; color: var(--accent); }
+  .pe-cap p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
+
+  /* === PAGE 3 ALTERNATIVES — The setting === */
+  .page-inner.ts h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .page-inner.ts h1 em { font-style: italic; color: var(--accent); }
+  .ts-hero { max-width: 540px; }
+  .ts-body {
+    margin-top: 48px; max-width: 540px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic; font-weight: 400;
+    font-size: 24px; line-height: 1.5; color: var(--ink-soft);
+    text-wrap: pretty;
+  }
+  .ts-body p + p { margin-top: 24px; }
+  /* Same berry-red highlight as the rest of the body prose. Italic is kept
+     because the surrounding prose is already italic. */
+  .ts-body em { color: var(--berry); font-style: italic; font-weight: 500; }
+  .ts-rule { margin: 56px 0 28px; border: 0; border-top: 1px solid var(--rule); }
+  .ts-facts {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  }
+  .ts-facts .fact { padding: 22px 18px 22px 22px; border-right: 1px solid var(--rule); }
+  .ts-facts .fact:first-child { padding-left: 0; }
+  .ts-facts .fact:last-child { border-right: 0; padding-right: 0; }
+  .ts-facts .label { margin-bottom: 10px; }
+  .ts-facts .val {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400; font-size: 22px; color: var(--ink); line-height: 1.1;
+  }
+  .ts-facts .val span {
+    display: block; margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .14em;
+    color: var(--ink-mute); text-transform: uppercase;
+  }
+  .ts-bottom {
+    margin-top: auto; max-width: 520px; color: var(--ink-mute);
+  }
+
+  /* === PAGE 3 ALTERNATIVES — Provenance === */
+  .page-inner.pv h1 {
+    margin: 6px 0 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 60px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .page-inner.pv h1 em { font-style: italic; color: var(--accent); }
+  /* Hero now spans the full page-inner width — the photo no longer crowds
+     the headline. Title can break naturally instead of being forced into a
+     narrow 460px column. */
+  .pv-hero { max-width: 880px; }
+  /* Middle band: prose on the left, photo inset on the right. The photo
+     stretches to match the prose column height so they bottom-align. */
+  .pv-mid {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 48px;
+    align-items: stretch;
+  }
+  .pv-photo {
+    width: 280px;
+    min-height: 340px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--paper-2);
+    filter: saturate(0.95) contrast(1.02);
+  }
+  /* When no photo data URI is supplied the empty background-image collapses
+     to the placeholder paper colour — layout stays intact. */
+  .pv-body {
+    max-width: 480px;
+    font-size: 14px; line-height: 1.85; color: var(--ink-soft);
+    text-wrap: pretty;
+  }
+  .pv-body p { margin: 0 0 18px 0; }
+  .pv-body p:last-child { margin-bottom: 0; }
+  /* Closing single-sentence beat — italic, slightly larger, set apart from
+     the body block. Keeps the page's last word visually significant. */
+  .pv-close {
+    margin: 28px 0 0;
+    max-width: 720px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  /* Editorial highlight: heliconia red (the brochure's "berry" accent),
+     applied to <em> tags inside body prose. Strong enough to pop against
+     ink-soft body text, restrained enough to read editorial. */
+  .pv-body em { color: var(--berry); font-style: normal; font-weight: 600; }
+  .pv-close em { color: var(--berry); font-style: italic; font-weight: 500; }
+  .pv-timeline {
+    margin-top: 48px;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    padding: 22px 0;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+  }
+  .pv-step { padding: 4px 18px 4px 22px; border-right: 1px solid var(--rule); }
+  .pv-step:first-child { padding-left: 0; }
+  .pv-step:last-child { border-right: 0; padding-right: 0; }
+  .pv-step .label { margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .pv-step .label::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); display: inline-block;
+  }
+  .pv-step .val {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400; font-size: 28px; line-height: 1; color: var(--ink);
+  }
+  .pv-step .val span {
+    display: block; margin-top: 8px;
+    font-family: 'Inter', sans-serif; font-weight: 300;
+    font-size: 11px; line-height: 1.4; color: var(--ink-mute);
+  }
+  .pv-bottom {
+    margin-top: auto; padding-top: 28px;
+    border-top: 1px solid var(--rule); max-width: 660px;
+  }
+
   /* === SITE PLAN === */
   .site h1 {
     margin: 6px 0 0;
@@ -459,36 +672,74 @@
      with explicit pixel height and per-photo width percentages. Tile
      aspect ratio equals the photo's natural aspect ratio by construction,
      so images fill their tiles edge-to-edge — no cropping, no whitespace.
-     A generous inter-row gap (40px) helps the gallery feel like a piece
-     of designed content, not photos crammed together. */
+     Inter-row gap kept tight enough that 3-row layouts don't push the
+     footer; horizontal photo-to-photo gap is generous so the row breathes. */
   .gallery-grid.masonry {
     display: flex;
     flex-direction: column;
-    gap: 40px;
+    gap: 28px;
   }
 
-  /* Page 5 layout: natural top-down flow (intro, gallery, closing). Then
-     the small "additional photography" footnote gets pushed to the bottom
-     of the page via margin-top:auto. This concentrates any leftover
-     vertical whitespace into ONE place (between closing paragraph and
-     footnote, at the bottom of the page) — reads as comfortable editorial
-     margin instead of awkward voids in the middle. */
+  /* Page 5 layout: natural top-down flow (intro, gallery, closing pull-quote).
+     The "additional photography" footnote is pinned to the bottom via
+     margin-top:auto so the closing pull-quote sits comfortably between
+     the gallery and the page edge. */
   .page-inner.gallery > .small {
     margin-top: auto;
   }
-  .gallery-intro,
-  .gallery-closing {
+  .gallery-intro {
     max-width: 560px;
   }
   .gallery-grid.masonry {
     margin-top: 28px;
   }
+
+  /* Closing pull-quote — editorial flex. The closing paragraph is rendered
+     as a large italic serif quote: indented, with decorative quote marks,
+     comfortably-spaced. Visually fills the area below the gallery without
+     needing extra content, and gives page 5 a final editorial beat. */
   .gallery-closing {
-    margin: 28px 0 0;
+    margin: 32px 0 0;
+    padding: 0 56px 0 80px;
+    font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 26px;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+    color: var(--ink-soft);
+    text-wrap: pretty;
+    position: relative;
+  }
+  .gallery-closing::before {
+    content: "“";
+    position: absolute;
+    left: 16px;
+    top: -8px;
+    font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+    font-style: normal;
+    font-weight: 300;
+    font-size: 80px;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.45;
+  }
+  .gallery-closing::after {
+    content: "”";
+    position: absolute;
+    right: 24px;
+    bottom: -28px;
+    font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+    font-style: normal;
+    font-weight: 300;
+    font-size: 80px;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.45;
   }
   .gallery-grid.masonry .gallery-row {
     display: flex;
-    gap: 6px;
+    gap: 14px;
     width: 100%;
     /* Centred so any row that didn't fill 100% (because MAX_ROW_H kicked
        in for a single tall photo) sits balanced on the page. */

@@ -13,6 +13,7 @@
 
 import { useCallback, useState } from "react";
 import { GalleryTemplateEditor } from "@/components/GalleryTemplateEditor";
+import { Page3VariantEditor, type Page3Variant } from "@/components/Page3VariantEditor";
 
 type Status = "idle" | "rendering" | "error" | "done";
 
@@ -25,17 +26,24 @@ export interface BrochureEditorProps {
   /** Captions aligned to `photos` — included for completeness; the editor
    *  doesn't render them, but the parent will once we surface caption editing. */
   photoCaptions: string[];
+  /** Number of `nearby` entries on the property record — needed by the
+   *  page-3 picker to grey out "Within reach" when there's nothing to list. */
+  nearbyCount: number;
 }
 
 export function BrochureEditor({
   propertyId,
   photos,
   photoDimensions,
+  nearbyCount,
 }: BrochureEditorProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [lastFilename, setLastFilename] = useState("");
   // Gallery state from the template editor: which template + photo order.
+  // Row count was retired — page 5 is always 2 rows now (up to 6 photos),
+  // with the pull-quote close always rendered. The dropped 3-row variant
+  // squashed photos too narrow to carry.
   const [galleryTemplateId, setGalleryTemplateId] = useState<string>("");
   const [galleryOrder, setGalleryOrder] = useState<string[]>([]);
   const handleGalleryChange = useCallback(
@@ -46,6 +54,12 @@ export function BrochureEditor({
     []
   );
 
+  // Page-3 variant choice (which template to render on page 3).
+  const [page3Variant, setPage3Variant] = useState<Page3Variant>("location");
+  const handlePage3Change = useCallback((v: Page3Variant) => {
+    setPage3Variant(v);
+  }, []);
+
   // Gallery page only appears in the brochure when there are ≥3 photos
   // (cover + at least 2 gallery shots). Don't show the editor otherwise.
   const showGalleryEditor = photos.length >= 3;
@@ -54,9 +68,14 @@ export function BrochureEditor({
     setStatus("rendering");
     setError("");
     try {
-      const payload: { galleryTemplateId?: string; galleryOrder?: string[] } = {};
+      const payload: {
+        galleryTemplateId?: string;
+        galleryOrder?: string[];
+        page3Variant?: Page3Variant;
+      } = {};
       if (galleryTemplateId) payload.galleryTemplateId = galleryTemplateId;
       if (galleryOrder.length > 0) payload.galleryOrder = galleryOrder;
+      if (page3Variant && page3Variant !== "location") payload.page3Variant = page3Variant;
       const res = await fetch(`/api/properties/${propertyId}/brochure/pdf-v2`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,11 +124,18 @@ export function BrochureEditor({
         </p>
       </div>
 
+      <Page3VariantEditor
+        totalPhotos={photos.length}
+        nearbyCount={nearbyCount}
+        onChange={handlePage3Change}
+      />
+
       {showGalleryEditor && (
         <GalleryTemplateEditor
           propertyId={propertyId}
           photos={photos}
           photoDimensions={photoDimensions}
+          page3Variant={page3Variant}
           onChange={handleGalleryChange}
         />
       )}

@@ -58,6 +58,56 @@ export interface LocationSlots {
   closing: string;  // 50-80 word bottom paragraph
 }
 
+/* ---- Page 3 alternatives (when seller hides the map / exact location) ---- */
+
+export interface WithinReachSlots {
+  headline: string; // ≤6 words / 50 chars
+  intro: string;    // ~50 words above the list
+}
+
+export interface PhotoEssaySlots {
+  headline: string;     // ≤6 words / 50 chars
+  fig1Label: string;    // e.g. "Threshold"
+  fig1Headline: string; // ≤6 words; <em> allowed
+  fig1Body: string;     // 50-70 words
+  fig2Label: string;
+  fig2Headline: string;
+  fig2Body: string;
+  fig3Label: string;
+  fig3Headline: string;
+  fig3Body: string;
+}
+
+export interface TheSettingSlots {
+  headline: string;     // ≤6 words / 50 chars; <em>+<br/> allowed
+  bodyPara1: string;    // ~60 word italic editorial prose
+  bodyPara2: string;    // ~60 word italic editorial prose
+  /** Fact-strip values; each ~10-20 chars. AI may set these to "" when no
+   *  meaningful data exists — the renderer hides empty cells. */
+  factSunValue: string;       // e.g. "South-east"
+  factSunCaption: string;     // e.g. "through afternoon"
+  factTerrainValue: string;   // e.g. "Coastal flat"
+  factTerrainCaption: string; // e.g. "direct sand access"
+  factSeaValue: string;       // e.g. "200 m"
+  factSeaCaption: string;     // e.g. "open bay"
+  factSeasonValue: string;    // e.g. "May — October"
+  factSeasonCaption: string;  // e.g. "swimmable"
+}
+
+export interface ProvenanceSlots {
+  headline: string;       // ≤6 words / 50 chars; <em>+<br/> allowed
+  para1: string;          // 60-90 words narrative (architecture / origins)
+  para2: string;          // 60-90 words narrative (restoration / present-day)
+  para3: string;          // 1-2 sentence landing
+  /** Timeline cells; the renderer hides empty ones. Built/restored values
+   *  default to property's yearBuilt/yearRestored, AI fills the captions. */
+  originallyFor: string;       // e.g. "Private use"
+  originallyForCaption: string;
+  builtCaption: string;        // small caption under the year
+  restoredCaption: string;
+  titleCaption: string;        // captions the tenure cell
+}
+
 export interface SitePlanSlots {
   headline: string; // 4-8 words; <em> allowed
 }
@@ -78,12 +128,50 @@ export interface PageSlotSet {
   cover: CoverSlots;
   glance: GlanceSlots;
   location: LocationSlots;
+  withinReach: WithinReachSlots;
+  photoEssay: PhotoEssaySlots;
+  theSetting: TheSettingSlots;
+  provenance: ProvenanceSlots;
   sitePlan: SitePlanSlots;
   feature: FeatureSlots;
   closing: ClosingSlots;
 }
 
 export type PageId = keyof PageSlotSet;
+
+/** Which page-3 variant the user picked for this brochure. "location" is
+ *  the default (map + nearby list); the other four are seller-privacy
+ *  alternatives that omit any exact-location pin. */
+export type Page3Variant =
+  | "location"
+  | "within-reach"
+  | "photo-essay"
+  | "the-setting"
+  | "provenance";
+
+export const PAGE3_VARIANTS: Page3Variant[] = [
+  "location",
+  "within-reach",
+  "photo-essay",
+  "the-setting",
+  "provenance",
+];
+
+export const PAGE3_VARIANT_LABELS: Record<Page3Variant, string> = {
+  "location": "Location & map",
+  "within-reach": "Within reach",
+  "photo-essay": "Photo essay",
+  "the-setting": "The setting",
+  "provenance": "Provenance",
+};
+
+export const PAGE3_VARIANT_BLURBS: Record<Page3Variant, string> = {
+  "location": "Map of the property + nearby places list. Default.",
+  "within-reach": "Just the nearby places list — no map pin.",
+  "photo-essay": "Three large photos with extended editorial captions.",
+  "the-setting": "Atmospheric prose — no places named.",
+  "provenance": "History of the property: built, restored, in-hand.",
+};
 
 export const SLOT_LABELS: Record<keyof BrochureSlots, string> = {
   coverTagline: "Cover tagline",
