@@ -248,7 +248,15 @@ export function PropertyForm({
     return m;
   });
   const [uploading, setUploading] = useState(0);
-  const [floorPlan, setFloorPlan] = useState<string>(existing?.floorPlan ?? "");
+  // Multi-image floor plan (1-3 images). Falls back to legacy single
+  // `floorPlan` URL for rows saved before the migration.
+  const [floorPlans, setFloorPlans] = useState<string[]>(
+    existing?.floorPlans && existing.floorPlans.length > 0
+      ? existing.floorPlans
+      : existing?.floorPlan
+        ? [existing.floorPlan]
+        : []
+  );
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
   const [highlights, setHighlights] = useState<string[]>(existing?.highlights ?? []);
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
@@ -392,22 +400,45 @@ export function PropertyForm({
     });
   }
 
-  async function uploadFloorPlan(file: File | null | undefined) {
-    if (!file) return;
+  // Upload one or more floor-plan images. Caps total at 3 (warns owner
+  // if she tries to add a 4th); the brochure layout supports 1, 2, or 3.
+  async function uploadFloorPlans(files: FileList | null) {
+    if (!files || files.length === 0) return;
     setUploadingFloorPlan(true);
     setError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || "Floor plan upload failed");
-      setFloorPlan(j.url as string);
+      const slotsRemaining = Math.max(0, 3 - floorPlans.length);
+      if (slotsRemaining === 0) {
+        setError("Maximum 3 floor-plan images. Remove one to add another.");
+        return;
+      }
+      const accepted = Array.from(files).slice(0, slotsRemaining);
+      const dropped = files.length - accepted.length;
+      const uploads = await Promise.all(
+        accepted.map(async (file) => {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(j.error || "Floor plan upload failed");
+          return j.url as string;
+        })
+      );
+      setFloorPlans((curr) => [...curr, ...uploads]);
+      if (dropped > 0) {
+        setError(
+          `Only the first ${accepted.length} uploaded — floor-plan max is 3 images.`
+        );
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setUploadingFloorPlan(false);
     }
+  }
+
+  function removeFloorPlan(url: string) {
+    setFloorPlans((curr) => curr.filter((u) => u !== url));
   }
 
   function setPrimary(url: string) {
@@ -454,7 +485,8 @@ export function PropertyForm({
       topography: f.get("topography") || undefined,
       boundary: f.get("boundary") || undefined,
       services: f.get("services") || undefined,
-      floorPlan: floorPlan || undefined,
+      floorPlan: floorPlans[0] || undefined,    // legacy single-value field — first image
+      floorPlans: floorPlans.length > 0 ? floorPlans : undefined,
       latitude: f.get("latitude") ? Number(f.get("latitude")) : undefined,
       longitude: f.get("longitude") ? Number(f.get("longitude")) : undefined,
       plotSize: f.get("plotSize") || undefined,
@@ -1070,42 +1102,60 @@ export function PropertyForm({
         </label>
 
         <div>
-          <span className={labelText}>Site / floor plan</span>
-          {floorPlan ? (
-            <div className="flex items-start gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={floorPlan}
-                alt="Site / floor plan"
-                className="h-32 w-auto border border-hairline/15 bg-ivory"
-              />
-              <button
-                type="button"
-                onClick={() => setFloorPlan("")}
-                className="px-2 py-1 text-eyebrow uppercase text-red-700 hover:underline"
-              >
-                Replace
-              </button>
-            </div>
-          ) : (
+          <span className={labelText}>
+            Site / floor plan {floorPlans.length > 0 && `(${floorPlans.length}/3)`}
+          </span>
+          {floorPlans.length > 0 && (
+            <ul className="mb-3 grid grid-cols-3 gap-2">
+              {floorPlans.map((url, i) => (
+                <li key={url} className="relative border border-hairline/15 bg-ivory">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Floor plan ${i + 1}`}
+                    className="h-32 w-full object-contain"
+                  />
+                  <span className="absolute left-1 top-1 bg-ink/70 px-1.5 py-0.5 text-[10px] text-paper">
+                    {i + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeFloorPlan(url)}
+                    title="Remove"
+                    className="absolute right-1 top-1 bg-paper/85 px-1.5 py-0.5 text-[10px] text-red-700 hover:bg-paper"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {floorPlans.length < 3 && (
             <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-hairline/30 bg-ivory px-4 py-6 text-sm text-ink-mute hover:bg-ivory-deep">
               <span>
-                {uploadingFloorPlan ? "Uploading…" : "Click to upload a site or floor plan"}
+                {uploadingFloorPlan
+                  ? "Uploading…"
+                  : floorPlans.length === 0
+                    ? "Click to upload a site or floor plan"
+                    : `Add another (${floorPlans.length}/3)`}
               </span>
               <span className="mt-1 text-xs text-ash">
-                JPG · PNG · WebP · single image · up to 10 MB
+                JPG · PNG · WebP · up to 10 MB each · max 3 images
               </span>
               <input
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
-                onChange={(e) => uploadFloorPlan(e.target.files?.[0])}
+                onChange={(e) => uploadFloorPlans(e.target.files)}
               />
             </label>
           )}
           <p className="mt-2 text-xs text-ash">
-            Optional. Shown on page 4 of the brochure. Use the property's surveyor diagram,
-            architect's floor plan, or any clean black-and-white drawing.
+            Optional. Shown on page 4 of the brochure. 1 image: full panel.
+            2 images: stacked. 3 images: two stacked + a third below the
+            particulars. <span className="font-medium text-ink-mute">Preferably 2–3 max</span>{" "}
+            — site, floor, and one level plan covers most properties.
           </p>
         </div>
       </section>

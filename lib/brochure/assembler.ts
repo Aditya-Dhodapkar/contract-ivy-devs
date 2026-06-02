@@ -123,7 +123,11 @@ export interface AssemblyInput {
     logo: string;        // brand logo
     coverHero: string;   // primary photo for the cover background
     localityMap: string; // static-map image for the location page (or "")
-    floorPlan: string;   // resolved site/floor plan image for page 4 (or "")
+    floorPlan: string;   // resolved site/floor plan image for page 4 (or ""). Legacy alias for floorPlans[0].
+    /** Up to 3 floor-plan images (data URIs / external URLs). The
+     *  sitePlan case stacks them: 1 = full left col, 2 = stacked left
+     *  col, 3 = 2 stacked left + 1 below particulars on the right. */
+    floorPlans?: string[];
     galleryPhotos: string[]; // resolved gallery photos for page 5 (already in tile order if explicit)
     /** Pixel dimensions aligned to galleryPhotos. May contain undefined/null
      *  entries for photos uploaded before dimension capture. */
@@ -400,14 +404,42 @@ function flatSlotsFor(page: PageId, input: AssemblyInput, pageNumber: number, pa
         )
         .join("\n          ");
 
-      const floorPlanImg = images.floorPlan
-        ? `<img class="siteplan-img" src="${escapeHtml(images.floorPlan)}" alt="Site / floor plan" />`
-        : `<div class="siteplan-empty">Site / floor plan available on request.</div>`;
+      // Floor plans: 1, 2, or 3 images. The first 1-2 always go in the
+      // left "siteplan" column; the 3rd (if present) goes under the
+      // particulars table on the right column via the extraFloorPlanImg
+      // slot. When no images exist, the left panel shows an "available on
+      // request" placeholder so the page still has visual weight.
+      const planUrls = (images.floorPlans?.length
+        ? images.floorPlans
+        : (images.floorPlan ? [images.floorPlan] : [])
+      ).slice(0, 3);
+
+      const imgHtml = (url: string, n: number) =>
+        `<img class="siteplan-img" src="${escapeHtml(url)}" alt="Site / floor plan ${n}" />`;
+
+      let floorPlanImg = "";
+      let extraFloorPlanImg = "";
+      if (planUrls.length === 0) {
+        floorPlanImg = `<div class="siteplan-empty">Site / floor plan available on request.</div>`;
+      } else if (planUrls.length === 1) {
+        floorPlanImg = imgHtml(planUrls[0], 1);
+      } else if (planUrls.length === 2) {
+        floorPlanImg =
+          `<div class="siteplan-stack">${imgHtml(planUrls[0], 1)}${imgHtml(planUrls[1], 2)}</div>`;
+      } else {
+        // 3 images: first two stacked on the left, third tucked under
+        // the particulars on the right.
+        floorPlanImg =
+          `<div class="siteplan-stack">${imgHtml(planUrls[0], 1)}${imgHtml(planUrls[1], 2)}</div>`;
+        extraFloorPlanImg =
+          `<div class="siteplan-extra">${imgHtml(planUrls[2], 3)}</div>`;
+      }
 
       return {
         ...base,
         landHeadline: sp.headline ?? "",
         floorPlanImg,
+        extraFloorPlanImg,
         particularsRows,
       };
     }

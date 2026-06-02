@@ -133,6 +133,32 @@ Observations from the first end-to-end test of page 5:
    helper rather than per-route slice math, otherwise future variants
    will silently overlap again.
 
+   UPDATE: lib/brochure/photo-allocator.ts now exists; per-route slice
+   math is gone; the assembler + editor consume it. Gallery cap is also
+   now 6 (densest 2-row) instead of 7. The 9-photo rule is enforced
+   server-side too (route 400s if photo-essay requested with <9 photos).
+
+
+[2026-06-01] Page 4 (Site Plan + Particulars) — multi-image support
+-------------------------------------------------------------------
+Two issues spotted on a 1-image floor plan rendering:
+
+1. Owner should be able to upload 1, 2, or 3 floor-plan images (nudge:
+   "preferably 2-3 max, not more"). Layout:
+   - 1 image: as today (left column, full)
+   - 2 images: stacked vertically in the left column (one under the other)
+   - 3 images: first two in the left column, third tucked UNDER the
+     "Particulars" table on the right column
+   Form: the existing single "Floor plan" upload should become a small
+   gallery (drag-and-drop / multi-upload, 3-cap with a soft warning at
+   the upload step if she tries to add a 4th).
+
+2. The "FIG. 02 — SITE / FLOOR PLAN" overlay text bleeds onto the image
+   itself (currently rendered as eyebrow caption that overlaps the image
+   tile). Either remove entirely OR move it cleanly below the image.
+   The owner shouldn't see "FIG. 02" anywhere on the brochure — it reads
+   as developer scaffolding.
+
 Pros: every photo gets a tasteful editorial caption with zero owner
 effort; matches the same "AI writes it for me" pattern as the
 description toggle thought above.

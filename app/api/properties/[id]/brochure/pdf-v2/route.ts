@@ -237,13 +237,27 @@ export async function POST(req: Request, { params }: Params) {
   const essayUrls = allocation.page3PhotoUrls;
   const provenanceUrl = allocation.provenancePhotoUrl;
 
-  const [logo, coverHero, localityMap, floorPlan, essay1, essay2, essay3, provenancePhoto, ...galleryPhotos] = await Promise.all([
+  // Floor-plan URLs: prefer the new multi-image array, fall back to the
+  // legacy single floor_plan. Cap at 3 (the layout can't show more).
+  const floorPlanUrls = pages.includes("sitePlan")
+    ? (
+        p.floorPlans && p.floorPlans.length > 0
+          ? p.floorPlans
+          : p.floorPlan
+            ? [p.floorPlan]
+            : []
+      ).slice(0, 3)
+    : [];
+
+  const [logo, coverHero, localityMap, fp1, fp2, fp3, essay1, essay2, essay3, provenancePhoto, ...galleryPhotos] = await Promise.all([
     localImageDataUri("sansi-logo.jpg"),
     allocation.coverUrl ? resolvePhoto(allocation.coverUrl) : Promise.resolve(""),
     pages.includes("location")
       ? fetchLocalityMap(p.latitude, p.longitude)
       : Promise.resolve(""),
-    pages.includes("sitePlan") ? resolvePhoto(p.floorPlan) : Promise.resolve(""),
+    floorPlanUrls[0] ? resolvePhoto(floorPlanUrls[0]) : Promise.resolve(""),
+    floorPlanUrls[1] ? resolvePhoto(floorPlanUrls[1]) : Promise.resolve(""),
+    floorPlanUrls[2] ? resolvePhoto(floorPlanUrls[2]) : Promise.resolve(""),
     essayUrls[0] ? resolvePhoto(essayUrls[0]) : Promise.resolve(""),
     essayUrls[1] ? resolvePhoto(essayUrls[1]) : Promise.resolve(""),
     essayUrls[2] ? resolvePhoto(essayUrls[2]) : Promise.resolve(""),
@@ -251,6 +265,9 @@ export async function POST(req: Request, { params }: Params) {
     ...galleryUrls.map((u) => resolvePhoto(u)),
   ]);
   const essayPhotos = [essay1, essay2, essay3].filter(Boolean);
+  const floorPlans = [fp1, fp2, fp3].filter(Boolean);
+  // Legacy single-value alias for assembler backwards compat.
+  const floorPlan = floorPlans[0] ?? "";
 
   // Draft every included page's slots in parallel.
   const aiSlots: Partial<PageSlotSet> = {};
@@ -278,6 +295,7 @@ export async function POST(req: Request, { params }: Params) {
       coverHero,
       localityMap,
       floorPlan,
+      floorPlans,
       galleryPhotos: galleryPhotos.filter(Boolean),
       galleryDims,
       explicitGalleryOrder: explicitOrder || !!galleryExplicitLayout || !!galleryTemplateId,

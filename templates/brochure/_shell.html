@@ -593,8 +593,11 @@
     padding: 22px;
     aspect-ratio: 1 / 1;
     position: relative;
+    /* When 2 images are stacked inside, the inner .siteplan-stack uses
+       flex to split the panel evenly. */
+    display: flex;
+    flex-direction: column;
   }
-  .siteplan .label { position: absolute; top: 18px; left: 22px; }
   .siteplan .compass {
     position: absolute; top: 18px; right: 22px;
     font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute);
@@ -609,6 +612,35 @@
     height: 100%;
     object-fit: contain;
     display: block;
+    filter: saturate(0.85) contrast(1.04);
+    /* When inside a stack (2-image left col), allow shrinking equally. */
+    min-height: 0;
+  }
+  /* Two floor-plan images stacked inside the left panel. Each takes half
+     the panel height, with a thin gap between them so they don't fuse. */
+  .siteplan-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    height: 100%;
+  }
+  .siteplan-stack .siteplan-img {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  /* Third floor-plan image, tucked into the right column under the
+     particulars table. Smaller than the left-col images by design — it's
+     a supporting view (e.g. an upper-level plan after the main floor +
+     site plans). */
+  .siteplan-extra {
+    margin-top: 18px;
+    padding: 14px;
+    background: var(--paper-2);
+    aspect-ratio: 4 / 3;
+    display: flex;
+  }
+  .siteplan-extra .siteplan-img {
     filter: saturate(0.85) contrast(1.04);
   }
   .siteplan-empty {

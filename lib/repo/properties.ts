@@ -53,7 +53,15 @@ export interface PropertyRecord {
    *  upload time. Drives cover-photo orientation guard + gallery tile
    *  aspect-ratio matching. */
   photoDimensions?: { w: number; h: number }[];
+  /** @deprecated single floor-plan URL. Kept for backwards compatibility;
+   *  new writes go to `floorPlans` (array, 1-3 images). Read order in the
+   *  app: floorPlans || [floorPlan]. */
   floorPlan?: string;
+  /** Multi-image floor plan (1-3 images: site / floor / level overlays).
+   *  Rendered on page 4 — 1: full left col, 2: stacked left col, 3: 2
+   *  left + 1 under particulars right col. The PropertyForm warns when
+   *  the owner tries to upload a 4th. */
+  floorPlans?: string[];
   assignedAgentId?: string;
   sellerId?: string;
   status: PropertyStatus;
@@ -128,6 +136,7 @@ function toRow(rec: Partial<PropertyRecord>): Row {
     photo_captions: rec.photoCaptions,
     photo_dimensions: rec.photoDimensions,
     floor_plan: rec.floorPlan,
+    floor_plans: rec.floorPlans && rec.floorPlans.length > 0 ? rec.floorPlans : null,
     assigned_agent_id: rec.assignedAgentId,
     seller_id: rec.sellerId,
     status: rec.status,
@@ -180,6 +189,9 @@ function fromRow(r: Row): PropertyRecord {
     photoCaptions: (r.photo_captions as string[]) ?? undefined,
     photoDimensions: (r.photo_dimensions as { w: number; h: number }[]) ?? undefined,
     floorPlan: (r.floor_plan as string) ?? undefined,
+    floorPlans: Array.isArray(r.floor_plans) && r.floor_plans.length > 0
+      ? (r.floor_plans as string[])
+      : undefined,
     assignedAgentId: (r.assigned_agent_id as string) ?? undefined,
     sellerId: (r.seller_id as string) ?? undefined,
     status: r.status as PropertyStatus,
