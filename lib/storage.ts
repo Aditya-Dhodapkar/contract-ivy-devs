@@ -16,18 +16,14 @@ import path from "path";
 import crypto from "crypto";
 import { usingDevData } from "@/lib/devUsers";
 import { supabase, STORAGE_BUCKET, DOCUMENTS_BUCKET } from "@/lib/supabase";
+import { IMAGE_MIME_EXTS, PHOTO_MAX_BYTES } from "@/lib/imageMime";
 
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
 const DOCUMENTS_DIR = path.join(process.cwd(), ".devdata", "documents");
 
-const IMAGE_EXTS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "image/heic": "heic",
-};
+// Single source of truth for the image MIME→ext map now lives in
+// lib/imageMime.ts so the client form can share the same allowlist (L6).
+const IMAGE_EXTS = IMAGE_MIME_EXTS;
 
 /** Document MIME allowlist: PDFs + images (scanned deeds are often photos
  *  of paper). Driven by the same map so the extension we save with matches
@@ -46,8 +42,10 @@ export function isAllowedDocument(mime: string): boolean {
 }
 
 /** Size cap per file. Documents get a bigger budget because scanned
- *  multi-page title deeds can be large. */
-export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+ *  multi-page title deeds can be large. PHOTO_MAX_BYTES is defined in
+ *  lib/imageMime.ts (shared with the client pre-check) and re-exported here so
+ *  existing importers of `@/lib/storage` keep working. */
+export { PHOTO_MAX_BYTES };
 export const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
 
 export interface StoredFile {

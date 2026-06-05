@@ -124,10 +124,23 @@
     background-color: var(--accent);
     background-size: cover; background-position: center;
   }
+  /* Legibility scrim over the hero. Two anchored zones — a top cap so the
+     cream logo + file-meta hold over a bright sky, and a confident bottom
+     plinth carrying the title/sub/footer — with the upper-middle left clear
+     so the photograph still breathes. The headline cluster gets its own
+     travelling scrim (.cover-headline) on top of this, so the centred title
+     is covered wherever it lands. */
   .cover-vignette {
     position: absolute; inset: 0;
     background:
-      linear-gradient(180deg, rgba(15,20,12,.55) 0%, rgba(15,20,12,.15) 28%, rgba(15,20,12,.08) 55%, rgba(15,20,12,.78) 100%);
+      linear-gradient(180deg,
+        rgba(15,20,12,.62) 0%,
+        rgba(15,20,12,.40) 10%,
+        rgba(15,20,12,.16) 24%,
+        rgba(15,20,12,.10) 40%,
+        rgba(15,20,12,.22) 56%,
+        rgba(15,20,12,.52) 76%,
+        rgba(15,20,12,.86) 100%);
   }
   .cover-frame {
     position: absolute; inset: 28px;
@@ -157,6 +170,26 @@
     text-transform: uppercase;
     line-height: 1.9;
     opacity: .85;
+  }
+  /* The top row sits over the brightest part of most outdoor photos (sky);
+     a single quiet shadow keeps the small mono type legible without a halo. */
+  .cover-mark, .cover-meta {
+    text-shadow: 0 1px 3px rgba(8,12,6,.55);
+  }
+  /* One single translucent panel behind the headline cluster (eyebrow +
+     title + sub) — a clean "text plate" rather than per-element shadows,
+     so the cream type stays legible over any hero photo. Sized to hug the
+     text (fit-content) and bled left so the copy still aligns to the page
+     margin. A background paints behind the element's own text, so no
+     z-index is needed. */
+  .cover-headline {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 560px;
+    margin-left: -34px;
+    padding: 26px 34px 30px;
+    background: rgba(11,15,10,.46);
+    border-radius: 3px;
   }
   .cover-title {
     font-family: 'Cormorant Garamond', serif;
