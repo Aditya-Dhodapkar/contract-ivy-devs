@@ -19,6 +19,61 @@ import type { ZodError } from "zod";
 
 const TYPES = ["house", "apartment", "land", "commercial"] as const;
 
+// Suggestion lists for the page-4 site-and-services chip pickers. Tuned to
+// common Kenyan luxury-real-estate descriptors; she can free-type anything
+// else. Stored as a single dot-separated string per field so the brochure
+// assembler doesn't care about the chip UI.
+const TOPOGRAPHY_SUGGESTIONS = [
+  "Flat",
+  "Gently sloping",
+  "Well-drained",
+  "Terraced",
+  "Coastal flat",
+  "Gentle gradient",
+  "Hilltop",
+  "Cliffside",
+  "Riverside",
+  "Plateau",
+];
+const BOUNDARY_SUGGESTIONS = [
+  "Perimeter fence",
+  "Mature hedge",
+  "Stone wall",
+  "Live fence",
+  "Electric fence",
+  "Gated entry",
+  "Natural treeline",
+  "Fully walled",
+  "Beachfront — no wall",
+];
+const SERVICES_SUGGESTIONS = [
+  "Mains water",
+  "Borehole",
+  "Borehole-ready",
+  "Grid power",
+  "Solar power",
+  "Generator backup",
+  "Inverter",
+  "Septic system",
+  "Mains sewer",
+  "Fibre internet",
+  "Satellite TV",
+];
+
+/** Helpers — site fields persist as a single dot-separated string for
+ *  brochure rendering, but the form UI works on a string[] so ChipInput
+ *  can present chips. Splitting on " · " is symmetric with the join. */
+function siteStringToChips(s: string | undefined): string[] {
+  if (!s) return [];
+  return s
+    .split("·")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+function siteChipsToString(chips: string[]): string | undefined {
+  return chips.length ? chips.join(" · ") : undefined;
+}
+
 const AMENITY_SUGGESTIONS = [
   // Outdoor / location
   "Swimming pool",
@@ -325,6 +380,18 @@ export function PropertyForm({
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
   const [highlights, setHighlights] = useState<string[]>(existing?.highlights ?? []);
   const [amenities, setAmenities] = useState<string[]>(existing?.amenities ?? []);
+  // Site & services (brochure page 4). Persisted as a single dot-separated
+  // string per field, edited here as chips so the UI matches amenities/
+  // highlights but with the accent variant for visual distinction.
+  const [topographyChips, setTopographyChips] = useState<string[]>(
+    () => siteStringToChips(existing?.topography)
+  );
+  const [boundaryChips, setBoundaryChips] = useState<string[]>(
+    () => siteStringToChips(existing?.boundary)
+  );
+  const [servicesChips, setServicesChips] = useState<string[]>(
+    () => siteStringToChips(existing?.services)
+  );
   // Brochure toggles default to true (show by default). Owner unticks per
   // property when the seller asked for the map or plot to be hidden.
   // showMapOnBrochure state was removed when the page-3 variant editor
@@ -753,9 +820,9 @@ export function PropertyForm({
       shape: f.get("shape") || undefined,
       siteCondition: f.get("siteCondition") || undefined,
       saleTerms: f.get("saleTerms") || undefined,
-      topography: f.get("topography") || undefined,
-      boundary: f.get("boundary") || undefined,
-      services: f.get("services") || undefined,
+      topography: siteChipsToString(topographyChips),
+      boundary: siteChipsToString(boundaryChips),
+      services: siteChipsToString(servicesChips),
       floorPlan: floorPlans[0] || undefined,    // legacy single-value field — first image
       floorPlans: floorPlans.length > 0 ? floorPlans : undefined,
       latitude: f.get("latitude") ? Number(f.get("latitude")) : undefined,
@@ -1139,7 +1206,12 @@ export function PropertyForm({
         </div>
 
         <div data-field="amenities" tabIndex={-1}>
-          <span className={labelText}>Amenities{reqMark}</span>
+          <span className={labelText}>
+            Amenities{reqMark}
+            <span className="ml-1.5 normal-case tracking-normal text-ash">
+              (aim for ≥10 — gives the brochure more to work with)
+            </span>
+          </span>
           <ChipInput
             value={amenities}
             onChange={(v) => {
@@ -1477,33 +1549,53 @@ export function PropertyForm({
 
       <section className="space-y-4 border-t border-hairline/15 pt-5">
         <p className="text-eyebrow uppercase text-ash">Site & services (brochure page 4)</p>
-        <label className={label}>
-          <span className={labelText}>Topography{reqMark}</span>
-          <input
-            name="topography"
-            defaultValue={v.topography}
-            placeholder="e.g. Gently sloping, well-drained"
-            className={field}
+        <div data-field="topography" tabIndex={-1}>
+          <span className={labelText}>
+            Topography{reqMark}
+            <span className="ml-1.5 normal-case tracking-normal text-ash">
+              (pick what fits — appears in the page-4 particulars table)
+            </span>
+          </span>
+          <ChipInput
+            value={topographyChips}
+            onChange={(v) => {
+              markDirty();
+              setTopographyChips(v);
+            }}
+            placeholder="Add a topography tag…"
+            suggestions={TOPOGRAPHY_SUGGESTIONS}
+            variant="accent"
           />
-        </label>
-        <label className={label}>
+          <FieldError name="topography" />
+        </div>
+        <div data-field="boundary" tabIndex={-1}>
           <span className={labelText}>Boundary{reqMark}</span>
-          <input
-            name="boundary"
-            defaultValue={v.boundary}
-            placeholder="e.g. Mature hedge & perimeter fence"
-            className={field}
+          <ChipInput
+            value={boundaryChips}
+            onChange={(v) => {
+              markDirty();
+              setBoundaryChips(v);
+            }}
+            placeholder="Add a boundary tag…"
+            suggestions={BOUNDARY_SUGGESTIONS}
+            variant="accent"
           />
-        </label>
-        <label className={label}>
+          <FieldError name="boundary" />
+        </div>
+        <div data-field="services" tabIndex={-1}>
           <span className={labelText}>Services{reqMark}</span>
-          <input
-            name="services"
-            defaultValue={v.services}
-            placeholder="e.g. Mains water · grid power · borehole-ready"
-            className={field}
+          <ChipInput
+            value={servicesChips}
+            onChange={(v) => {
+              markDirty();
+              setServicesChips(v);
+            }}
+            placeholder="Add a service…"
+            suggestions={SERVICES_SUGGESTIONS}
+            variant="accent"
           />
-        </label>
+          <FieldError name="services" />
+        </div>
 
         <div>
           <span className={labelText}>

@@ -11,11 +11,16 @@ export function ChipInput({
   onChange,
   placeholder,
   suggestions = [],
+  variant = "default",
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
   suggestions?: string[];
+  /** Visual variant. "default" = cream chips (highlights, amenities).
+   *  "accent" = forest-green left bar (site & services), so those fields
+   *  read as a different family from amenities. */
+  variant?: "default" | "accent";
 }) {
   const [draft, setDraft] = useState("");
 
@@ -42,6 +47,18 @@ export function ChipInput({
 
   const available = suggestions.filter((s) => !value.includes(s));
 
+  // Two visual families. "accent" gives chips a forest-green left bar so
+  // site-and-services fields look distinct from amenities even though they
+  // share the same input mechanics.
+  const chipClass =
+    variant === "accent"
+      ? "group flex items-center gap-1 border-l-2 border-l-[#2d3b2c] bg-ivory-deep/70 px-2 py-0.5 text-xs text-ink hover:bg-red-100"
+      : "group flex items-center gap-1 bg-ivory-deep px-2 py-0.5 text-xs text-ink hover:bg-red-100";
+  const suggestionClass =
+    variant === "accent"
+      ? "border border-dashed border-[#2d3b2c]/40 px-2 py-0.5 text-xs text-[#2d3b2c]/80 hover:bg-[#2d3b2c]/5 hover:text-[#2d3b2c]"
+      : "border border-dashed border-hairline/30 px-2 py-0.5 text-xs text-ink-mute hover:bg-paper hover:text-ink";
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-1.5 border border-hairline/20 bg-ivory px-2 py-1.5">
@@ -50,7 +67,7 @@ export function ChipInput({
             key={s}
             type="button"
             onClick={() => remove(s)}
-            className="group flex items-center gap-1 bg-ivory-deep px-2 py-0.5 text-xs text-ink hover:bg-red-100"
+            className={chipClass}
             title="Remove"
           >
             {s} <span className="text-ash group-hover:text-red-700">×</span>
@@ -72,7 +89,7 @@ export function ChipInput({
               key={s}
               type="button"
               onClick={() => add(s)}
-              className="border border-dashed border-hairline/30 px-2 py-0.5 text-xs text-ink-mute hover:bg-paper hover:text-ink"
+              className={suggestionClass}
             >
               + {s}
             </button>
