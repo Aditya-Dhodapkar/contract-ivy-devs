@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "@/lib/brochure/browser";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import { getProperty } from "@/lib/repo/properties";
@@ -112,6 +112,15 @@ async function fetchLocalityMap(
     return "";
   }
 }
+
+// Route-segment config. Chromium needs the Node runtime (not Edge). The
+// handler fires several Claude calls + a map fetch + a full PDF render, which
+// comfortably exceeds Vercel's 10 s default — bump the ceiling so it isn't
+// killed mid-render. force-dynamic keeps this from ever being statically
+// optimized (it's a per-request POST that launches a browser).
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -309,11 +318,10 @@ export async function POST(req: Request, { params }: Params) {
     },
   });
 
-  // Launch headless Chromium and render.
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  // Launch headless Chromium and render. The launcher picks the right
+  // browser for the environment (bundled puppeteer locally, @sparticuz/
+  // chromium on Vercel) — see lib/brochure/browser.ts.
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "load" });
