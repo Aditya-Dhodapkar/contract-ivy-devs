@@ -73,6 +73,41 @@ export async function put(buf: Buffer, mime: string): Promise<StoredFile> {
   return { url: data.publicUrl, key };
 }
 
+/** Public bucket for feedback attachments (screenshots + voice notes). Public
+ *  with unguessable keys, same posture as property photos — so the submitter
+ *  can replay her own attachments from the feedback log. */
+export const FEEDBACK_BUCKET =
+  process.env.SUPABASE_FEEDBACK_BUCKET || "feedback-attachments";
+
+function extFromMime(mime: string): string {
+  if (mime in IMAGE_EXTS) return IMAGE_EXTS[mime];
+  if (mime.includes("/")) return mime.split("/")[1].split(";")[0] || "bin";
+  return "bin";
+}
+
+/** Store a feedback attachment (image or audio) and return a browser URL. */
+export async function putFeedbackAttachment(
+  buf: Buffer,
+  mime: string
+): Promise<StoredFile> {
+  const ext = extFromMime(mime);
+  const key = `${crypto.randomUUID()}.${ext}`;
+
+  if (usingDevData) {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    await fs.writeFile(path.join(UPLOADS_DIR, key), buf);
+    return { url: `/uploads/${key}`, key };
+  }
+
+  const sb = supabase();
+  const { error } = await sb.storage
+    .from(FEEDBACK_BUCKET)
+    .upload(key, buf, { contentType: mime, upsert: false });
+  if (error) throw new Error(`Feedback upload failed: ${error.message}`);
+  const { data } = sb.storage.from(FEEDBACK_BUCKET).getPublicUrl(key);
+  return { url: data.publicUrl, key };
+}
+
 /* ----------------------------- documents ----------------------------- */
 
 /** Storage key used by the documents bucket / dev folder. We namespace by

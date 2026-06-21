@@ -1,160 +1,49 @@
-// Feedback → GitHub Issues bridge. Keeps the dev's issue tracker entirely
-// outside the client's system: nothing lands in her DB; the back-office
-// just relays the report to a private repo we own.
+// Feedback bridge. Two destinations:
+//   1. Supabase: a `feedback` row (the submitter's own log) + attachments in
+//      the public feedback-attachments bucket, so she can replay her voice
+//      notes / screenshots from the log.
+//   2. GitHub Issues (optional, if configured): our dev tracker, referencing
+//      the same Supabase attachment URLs.
 //
-// Required env:
-//   GITHUB_FEEDBACK_TOKEN   fine-grained PAT; scopes:
-//                             - Issues: read/write
-//                             - Contents: read/write  (to commit screenshots)
-//   GITHUB_FEEDBACK_REPO    "owner/repo" — where issues + images land
-//
-// Image strategy: screenshots are committed to an ORPHAN branch named
-// `feedback-attachments` (configurable via FEEDBACK_BRANCH) — never main.
-// This keeps the main commit log clean and means devs never see the
-// "you have N commits to pull" surprise when feedback comes in. The
-// orphan branch is bootstrapped lazily on first feedback with images.
-//
-// The resulting raw.githubusercontent.com URL embeds the branch name and
-// renders inline in the issue. Because the repo is private, only people
-// with repo access can view the images — which is exactly the right
-// audience (us).
+// Required env for the GitHub mirror (optional — feedback still logs without it):
+//   GITHUB_FEEDBACK_TOKEN   fine-grained PAT: Issues read/write
+//   GITHUB_FEEDBACK_REPO    "owner/repo"
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { putFeedbackAttachment } from "@/lib/storage";
+import { createFeedback, type FeedbackCategory } from "@/lib/repo/feedback";
 
-type ImageIn = { name: string; type: string; base64: string };
+type FileIn = { name: string; type: string; base64: string };
 type Body = {
-  category?: "bug" | "feature" | "other";
+  category?: FeedbackCategory;
   title?: string;
   body?: string;
-  images?: ImageIn[];
-  /** Optional voice note recorded in the browser (webm/mp4/ogg), base64. */
-  audio?: ImageIn;
+  images?: FileIn[];
+  audio?: FileIn;
 };
 
-const CATEGORY_LABEL: Record<NonNullable<Body["category"]>, string> = {
+const CATEGORY_LABEL: Record<FeedbackCategory, string> = {
   bug: "Bug",
   feature: "Feature",
   other: "Feedback",
 };
 
 const GH_API = "https://api.github.com";
-const FEEDBACK_BRANCH = process.env.FEEDBACK_BRANCH || "feedback-attachments";
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "image";
-}
-
-function extFromName(name: string, fallbackType = ""): string {
-  const m = /\.([a-z0-9]+)$/i.exec(name);
-  if (m) return m[1].toLowerCase();
-  // Derive from a MIME type like "audio/webm;codecs=opus" -> "webm".
-  if (fallbackType.includes("/")) {
-    return fallbackType.split("/")[1].split(";")[0].toLowerCase() || "bin";
+async function uploadAttachment(f: FileIn): Promise<string | null> {
+  try {
+    const buf = Buffer.from(f.base64, "base64");
+    const { url } = await putFeedbackAttachment(buf, f.type || "application/octet-stream");
+    return url;
+  } catch {
+    return null;
   }
-  return "png";
-}
-
-async function ghFetch(path: string, init: RequestInit, token: string) {
-  return fetch(`${GH_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-}
-
-/** Lazily create the orphan attachments branch. Idempotent: returns early
- *  if it already exists. The branch is created with a single README commit
- *  and NO parents — fully disconnected from main, so noise here can never
- *  reach the working branch. */
-async function ensureFeedbackBranch(repo: string, branch: string, token: string): Promise<void> {
-  const check = await ghFetch(`/repos/${repo}/branches/${encodeURIComponent(branch)}`, {}, token);
-  if (check.ok) return;
-  if (check.status !== 404) {
-    throw new Error(`Branch existence check failed (HTTP ${check.status}).`);
-  }
-
-  // 1. README blob
-  const readme =
-    `# Feedback attachments\n\n` +
-    `This orphan branch stores screenshots attached to feedback submitted ` +
-    `via the back-office. The files are automatically committed by ` +
-    `\`/api/feedback\` and referenced from the corresponding GitHub issue ` +
-    `on this repo. Do not check out or modify this branch by hand.\n`;
-  const blobRes = await ghFetch(
-    `/repos/${repo}/git/blobs`,
-    { method: "POST", body: JSON.stringify({ content: readme, encoding: "utf-8" }) },
-    token
-  );
-  if (!blobRes.ok) throw new Error(`Bootstrap blob failed (HTTP ${blobRes.status}).`);
-  const { sha: blobSha } = (await blobRes.json()) as { sha: string };
-
-  // 2. Tree containing just that README
-  const treeRes = await ghFetch(
-    `/repos/${repo}/git/trees`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        tree: [{ path: "README.md", mode: "100644", type: "blob", sha: blobSha }],
-      }),
-    },
-    token
-  );
-  if (!treeRes.ok) throw new Error(`Bootstrap tree failed (HTTP ${treeRes.status}).`);
-  const { sha: treeSha } = (await treeRes.json()) as { sha: string };
-
-  // 3. Orphan commit (parents: [] = disconnected from main)
-  const commitRes = await ghFetch(
-    `/repos/${repo}/git/commits`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        message: "init feedback-attachments orphan branch",
-        tree: treeSha,
-        parents: [],
-      }),
-    },
-    token
-  );
-  if (!commitRes.ok) throw new Error(`Bootstrap commit failed (HTTP ${commitRes.status}).`);
-  const { sha: commitSha } = (await commitRes.json()) as { sha: string };
-
-  // 4. Point the ref at it
-  const refRes = await ghFetch(
-    `/repos/${repo}/git/refs`,
-    {
-      method: "POST",
-      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
-    },
-    token
-  );
-  if (!refRes.ok) throw new Error(`Bootstrap ref failed (HTTP ${refRes.status}).`);
 }
 
 export async function POST(req: Request) {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-
-  const token = process.env.GITHUB_FEEDBACK_TOKEN;
-  const repo = process.env.GITHUB_FEEDBACK_REPO;
-  if (!token || !repo) {
-    return NextResponse.json(
-      {
-        error:
-          "Feedback isn't configured yet. Ask the developer to set GITHUB_FEEDBACK_TOKEN and GITHUB_FEEDBACK_REPO.",
-      },
-      { status: 503 }
-    );
-  }
 
   let payload: Body;
   try {
@@ -162,167 +51,98 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
+
   const category = payload.category ?? "other";
   const title = (payload.title || "").trim();
   const body = (payload.body || "").trim();
-  const images = Array.isArray(payload.images) ? payload.images : [];
-  let audio = payload.audio?.base64 ? payload.audio : null;
-  // Details can be typed OR spoken — require a title, plus either body or audio.
+  const images = Array.isArray(payload.images) ? payload.images.slice(0, 6) : [];
+  const audioIn = payload.audio?.base64 ? payload.audio : null;
+
   if (!title) {
     return NextResponse.json({ error: "A short title is required." }, { status: 400 });
   }
-  if (!body && !audio) {
+  if (!body && !audioIn) {
     return NextResponse.json(
       { error: "Add details or record a voice note." },
       { status: 400 }
     );
   }
-  if (images.length > 6) {
-    return NextResponse.json({ error: "At most 6 screenshots, please." }, { status: 400 });
-  }
 
-  // 1. Commit each image to the orphan attachments branch. Failures here
-  // are logged but do not block the issue — the report is more important
-  // than the screenshots. The branch is bootstrapped lazily on first use;
-  // skip the check entirely when there are no images to upload.
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const titleSlug = slugify(title);
-  const imageMarkdown: string[] = [];
-  const uploadErrors: string[] = [];
+  // 1. Upload attachments to Supabase Storage (public URLs the submitter can
+  // open from her log, and which also render in the GitHub issue).
+  const imageUrls: string[] = [];
+  for (const img of images) {
+    const url = await uploadAttachment(img);
+    if (url) imageUrls.push(url);
+  }
+  const audioUrl = audioIn ? await uploadAttachment(audioIn) : null;
 
-  if (images.length > 0 || audio) {
-    try {
-      await ensureFeedbackBranch(repo, FEEDBACK_BRANCH, token);
-    } catch (e) {
-      uploadErrors.push(`branch bootstrap: ${(e as Error).message}`);
-      // If we can't ensure the branch, fall back to skipping all attachments
-      // rather than half-committing somewhere unexpected.
-      images.length = 0;
-      audio = null;
-    }
-  }
-
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i];
-    if (!img?.base64) continue;
-    const ext = extFromName(img.name || "", img.type || "");
-    const path = `feedback-images/${ts}-${i + 1}-${titleSlug}.${ext}`;
-    try {
-      const res = await ghFetch(
-        `/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            message: `feedback: attach ${path.split("/").pop()}`,
-            content: img.base64,
-            branch: FEEDBACK_BRANCH,
-          }),
-        },
-        token
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        uploadErrors.push(`image ${i + 1}: HTTP ${res.status} ${text.slice(0, 200)}`);
-        continue;
-      }
-      const j = (await res.json()) as { content?: { html_url?: string; download_url?: string } };
-      const rawUrl = j.content?.download_url || j.content?.html_url || "";
-      if (rawUrl) imageMarkdown.push(`![screenshot ${i + 1}](${rawUrl})`);
-    } catch (e) {
-      uploadErrors.push(`image ${i + 1}: ${(e as Error).message}`);
-    }
-  }
-
-  // 1b. Commit the voice note (if any) to the same branch and link it. GitHub
-  // won't render an inline audio player for a branch-committed file, but the
-  // raw URL is fully playable when clicked.
-  let audioMarkdown = "";
-  if (audio?.base64) {
-    const ext = extFromName(audio.name || "", audio.type || "audio/webm");
-    const path = `feedback-audio/${ts}-${titleSlug}.${ext}`;
-    try {
-      const res = await ghFetch(
-        `/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            message: `feedback: attach ${path.split("/").pop()}`,
-            content: audio.base64,
-            branch: FEEDBACK_BRANCH,
-          }),
-        },
-        token
-      );
-      if (res.ok) {
-        const j = (await res.json()) as { content?: { html_url?: string; download_url?: string } };
-        const rawUrl = j.content?.download_url || j.content?.html_url || "";
-        if (rawUrl) audioMarkdown = `🎙️ [Voice note — click to play or download](${rawUrl})`;
-      } else {
-        const text = await res.text().catch(() => "");
-        uploadErrors.push(`audio: HTTP ${res.status} ${text.slice(0, 200)}`);
-      }
-    } catch (e) {
-      uploadErrors.push(`audio: ${(e as Error).message}`);
-    }
-  }
-
-  // 2. Compose the issue body. Submitter context + the user's prose + any
-  // image markdown + a footer with upload errors if any.
-  const submitter = `${user.name} (${user.email}) · role: ${user.role}`;
-  const ua = req.headers.get("user-agent") || "—";
-  const referer = req.headers.get("referer") || "—";
-  const sections: string[] = [
-    `**From:** ${submitter}`,
-    `**When:** ${new Date().toISOString()}`,
-    `**Page:** ${referer}`,
-    `**User agent:** ${ua}`,
-    "",
-    "---",
-    "",
-    body || "_(No typed details — see the voice note below.)_",
-  ];
-  if (audioMarkdown) {
-    sections.push("", "---", "", "### Voice note", "", audioMarkdown);
-  }
-  if (imageMarkdown.length) {
-    sections.push("", "---", "", "### Screenshots", "", ...imageMarkdown);
-  }
-  if (uploadErrors.length) {
-    sections.push(
+  // 2. Optionally mirror to GitHub Issues (our tracker).
+  let githubIssueNumber: number | undefined;
+  let githubIssueUrl: string | undefined;
+  const token = process.env.GITHUB_FEEDBACK_TOKEN;
+  const repo = process.env.GITHUB_FEEDBACK_REPO;
+  if (token && repo) {
+    const submitter = `${user.name} (${user.email}) · role: ${user.role}`;
+    const sections: string[] = [
+      `**From:** ${submitter}`,
+      `**When:** ${new Date().toISOString()}`,
+      `**Page:** ${req.headers.get("referer") || "—"}`,
       "",
       "---",
       "",
-      "_Note: some screenshots failed to upload:_",
-      ...uploadErrors.map((m) => `- ${m}`)
-    );
+      body || "_(No typed details — see the voice note below.)_",
+    ];
+    if (audioUrl) {
+      sections.push("", "---", "", "### Voice note", "", `🎙️ [Voice note — click to play](${audioUrl})`);
+    }
+    if (imageUrls.length) {
+      sections.push("", "---", "", "### Screenshots", "", ...imageUrls.map((u, i) => `![screenshot ${i + 1}](${u})`));
+    }
+    try {
+      const res = await fetch(`${GH_API}/repos/${repo}/issues`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: `[${CATEGORY_LABEL[category]}] ${title}`,
+          body: sections.join("\n"),
+          labels: ["feedback", `feedback:${category}`, `submitter:${user.role}`],
+        }),
+      });
+      if (res.ok) {
+        const issue = (await res.json()) as { number: number; html_url: string };
+        githubIssueNumber = issue.number;
+        githubIssueUrl = issue.html_url;
+      }
+    } catch {
+      // GitHub mirror is best-effort; the feedback log is the source of truth.
+    }
   }
-  const issueBody = sections.join("\n");
-  const labels = [
-    `feedback`,
-    `feedback:${category}`,
-    `submitter:${user.role}`,
-  ];
 
-  // 3. Create the issue.
-  const issueRes = await ghFetch(
-    `/repos/${repo}/issues`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        title: `[${CATEGORY_LABEL[category]}] ${title}`,
-        body: issueBody,
-        labels,
-      }),
-    },
-    token
-  );
-  if (!issueRes.ok) {
-    const text = await issueRes.text().catch(() => "");
+  // 3. Record it in the feedback log (the submitter's own history).
+  try {
+    const fb = await createFeedback({
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      category,
+      title,
+      body,
+      imageUrls,
+      audioUrl: audioUrl ?? undefined,
+      githubIssueNumber,
+      githubIssueUrl,
+    });
+    return NextResponse.json({ ok: true, id: fb.id, number: githubIssueNumber });
+  } catch (e) {
     return NextResponse.json(
-      { error: `Could not file the issue (HTTP ${issueRes.status}). ${text.slice(0, 300)}` },
+      { error: `Could not save feedback: ${(e as Error).message}` },
       { status: 502 }
     );
   }
-  const issue = (await issueRes.json()) as { number: number; html_url: string };
-  return NextResponse.json({ ok: true, number: issue.number, url: issue.html_url });
 }

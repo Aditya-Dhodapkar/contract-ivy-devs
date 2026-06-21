@@ -7,6 +7,7 @@
 // them the feedback just "lands with the developer".
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { ModalShell, modalBtnCancel, modalBtnPrimary } from "@/components/ModalShell";
 
 type Category = "bug" | "feature" | "other";
@@ -28,7 +29,7 @@ export function FeedbackButton() {
   const [images, setImages] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState<{ number: number } | null>(null);
+  const [success, setSuccess] = useState<{ number?: number } | null>(null);
 
   // Voice note recording state.
   const [recording, setRecording] = useState(false);
@@ -218,17 +219,34 @@ export function FeedbackButton() {
         }
       >
         {success ? (
-          <p>
-            Your note has been logged with the developer (ref #{success.number}).
-            They'll get back to you. Feel free to send another any time you spot
-            something or have an idea.
-          </p>
+          <div className="space-y-4">
+            <p>
+              Your note has been logged with the developer
+              {success.number ? ` (ref #${success.number})` : ""}. They&rsquo;ll
+              get back to you. Feel free to send another any time.
+            </p>
+            <Link
+              href="/feedback-log"
+              onClick={close}
+              className="inline-block text-eyebrow uppercase text-gold-deep underline-offset-2 hover:underline"
+            >
+              View my feedback log →
+            </Link>
+          </div>
         ) : (
           <div className="space-y-5 text-ink">
-            <p className="text-sm text-ink-mute">
-              Bug, feature idea, question, anything — drop it here. The developer
-              will see it directly. Add a screenshot if it'll help.
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-ink-mute">
+                Bug, idea, question — anything. The developer sees it directly.
+              </p>
+              <Link
+                href="/feedback-log"
+                onClick={close}
+                className="shrink-0 text-eyebrow uppercase text-gold-deep underline-offset-2 hover:underline"
+              >
+                My feedback →
+              </Link>
+            </div>
 
             <label className="block">
               <span className="mb-2 block text-eyebrow uppercase">Type</span>
