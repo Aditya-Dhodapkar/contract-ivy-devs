@@ -6,7 +6,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, SESSION_COOKIE } from "@/lib/auth";
 
-const PUBLIC = ["/login", "/uploads"];
+const PUBLIC = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/uploads",
+  "/sansi-logo.jpg", // brand logo shown on the public login page
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -27,6 +33,9 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Skip Next internals, favicon, and the public login API.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/login).*)"],
+  // Skip Next internals, favicon, and the public auth APIs (login, forgot- and
+  // reset-password) — those must be reachable while signed out.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/auth/login|api/auth/forgot-password|api/auth/reset-password).*)",
+  ],
 };

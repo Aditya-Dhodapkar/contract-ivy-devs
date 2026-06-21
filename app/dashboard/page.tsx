@@ -50,7 +50,8 @@ export default async function DashboardPage() {
   const user = await actingUser();
   if (!user) redirect("/login");
   const perms = permissionsFor(user.role);
-  const name = displayNameFromEmail(user.email);
+  // The owner is the practice principal — greet her by name.
+  const name = user.role === "owner" ? "Sansi" : displayNameFromEmail(user.email);
   // Only Owners approve, so only Owners get the queue tile.
   const pendingCount = user.role === "owner" ? await countPendingApprovals() : 0;
 

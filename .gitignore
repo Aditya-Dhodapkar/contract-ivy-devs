@@ -5,4 +5,7 @@ public/uploads
 *.log
 .DS_Store
 *.env
+.env*.local
+tsconfig.tsbuildinfo
 *skills
+.vercel

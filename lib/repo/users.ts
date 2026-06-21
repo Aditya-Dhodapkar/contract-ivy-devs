@@ -269,6 +269,17 @@ export async function resetUserPassword(
   return { user: updated, tempPassword };
 }
 
+/** Set a user's password to a known value (used by the forgot-password reset
+ *  flow, after the reset token is verified). Clears must-change. Changing the
+ *  hash also invalidates any outstanding reset token (see lib/passwordReset). */
+export async function setUserPassword(
+  id: string,
+  newPassword: string
+): Promise<UserRecord> {
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  return writeUserMutation(id, { passwordHash, mustChangePassword: false });
+}
+
 /** User self-change: requires current password. Clears must-change on success. */
 export async function changeOwnPassword(
   id: string,
