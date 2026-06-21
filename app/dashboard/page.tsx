@@ -4,7 +4,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Building2, Plus, MessageSquare, BarChart3, Users } from "lucide-react";
-import { getSession } from "@/lib/auth";
+import { actingUser, canDo } from "@/lib/access";
 import { permissionsFor, ROLE_LABELS } from "@/lib/roles";
 import { Header } from "@/components/Header";
 import { countPendingApprovals } from "@/lib/repo/properties";
@@ -47,7 +47,7 @@ function displayNameFromEmail(email: string): string {
 }
 
 export default async function DashboardPage() {
-  const user = await getSession();
+  const user = await actingUser();
   if (!user) redirect("/login");
   const perms = permissionsFor(user.role);
   const name = displayNameFromEmail(user.email);
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
     { show: perms.createProperty, title: "Add property", desc: "Create a new record", href: "/properties/new", Icon: Plus },
     { show: perms.viewInquiries !== false, title: "Inquiries", desc: "Leads & follow-ups", href: "/leads", Icon: MessageSquare },
     { show: perms.viewReports, title: "Reports", desc: "Weekly activity", href: "/reports", Icon: BarChart3 },
-    { show: perms.manageUsers, title: "Team & roles", desc: "Members & permissions", href: "/team", Icon: Users },
+    { show: canDo(user, "manageUsers"), title: "Team & roles", desc: "Members & permissions", href: "/team", Icon: Users },
   ].filter((t) => t.show);
 
   return (

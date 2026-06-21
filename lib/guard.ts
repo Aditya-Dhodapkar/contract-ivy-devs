@@ -4,23 +4,29 @@
 
 import { NextResponse } from "next/server";
 import { getSession, type SessionUser } from "@/lib/auth";
-import { can, type Permissions } from "@/lib/roles";
+import { can, sanitizeGrants, type Capability, type Permissions } from "@/lib/roles";
+import { getUser } from "@/lib/repo/users";
 
-type GuardOk = { user: SessionUser };
+// The session user, augmented with the grants read fresh for this request.
+export type GuardUser = SessionUser & { grants: Capability[] };
+type GuardOk = { user: GuardUser };
 type GuardFail = { response: NextResponse };
 
 export async function guard(
   capability: keyof Permissions,
   ctx: { isOwnerOfRecord?: boolean } = {}
 ): Promise<GuardOk | GuardFail> {
-  const user = await getSession();
-  if (!user) {
+  const session = await getSession();
+  if (!session) {
     return { response: NextResponse.json({ error: "Unauthenticated" }, { status: 401 }) };
   }
-  if (!can(user.role, capability, ctx)) {
+  // Read grants fresh so changes (especially revokes) apply immediately.
+  const record = await getUser(session.id);
+  const grants = sanitizeGrants(record?.grants);
+  if (!can(session.role, capability, { ...ctx, grants })) {
     return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return { user };
+  return { user: { ...session, grants } };
 }
 
 export function isFail(r: GuardOk | GuardFail): r is GuardFail {

@@ -14,6 +14,15 @@ export async function POST(req: Request, { params }: Params) {
   const target = await getUser(id);
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Only a real Owner can deactivate an Owner account — a granted "manage team"
+  // user must not be able to lock out the owner.
+  if (target.role === "owner" && g.user.role !== "owner") {
+    return NextResponse.json(
+      { error: "Only the owner can deactivate the owner account." },
+      { status: 403 }
+    );
+  }
+
   const { active } = await req.json().catch(() => ({ active: false }));
 
   // Block self-deactivation — no lockout via the UI.

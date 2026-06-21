@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const field =
-  "w-full border border-hairline/20 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold";
+  "w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold";
 const labelText = "mb-1 block text-eyebrow uppercase text-ink";
 
 export function ProfileForms({

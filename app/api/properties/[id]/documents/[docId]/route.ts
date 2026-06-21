@@ -1,11 +1,9 @@
-// Delete a single document. Owner-only — server-enforced via the
-// deleteDocument capability (which is `true` for Owner, `false` for
-// everyone else). Belt + braces: we also check user.role === "owner"
-// explicitly, same pattern as property delete.
+// Delete a single document. Owner-only by default, but the Owner can GRANT
+// document deletion to others (lib/roles GRANTABLE); the deleteDocument
+// capability via guard() honours those grants.
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { can } from "@/lib/roles";
+import { guard, isFail } from "@/lib/guard";
 import { getProperty } from "@/lib/repo/properties";
 import { deleteDocument, getDocumentRecord } from "@/lib/repo/documents";
 
@@ -13,14 +11,9 @@ type Params = { params: Promise<{ id: string; docId: string }> };
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { id, docId } = await params;
-  const user = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-
-  // Belt + braces: the capability check below would already reject non-owners,
-  // but mirroring the property-delete pattern keeps the rule explicit.
-  if (user.role !== "owner" || !can(user.role, "deleteDocument")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const g = await guard("deleteDocument");
+  if (isFail(g)) return g.response;
+  const user = g.user;
 
   // Make sure the doc actually belongs to this property — defence against
   // a crafted URL where someone substitutes another property's docId.

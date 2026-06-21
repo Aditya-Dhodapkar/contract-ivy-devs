@@ -18,7 +18,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
 };
 
 const field =
-  "w-full border border-hairline/25 bg-ivory px-3 py-2 text-sm text-ink outline-none focus:border-gold";
+  "w-full border border-hairline/25 bg-ivory px-3 py-2.5 text-base text-ink outline-none focus:border-gold";
 
 export function FeedbackButton() {
   const [open, setOpen] = useState(false);

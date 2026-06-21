@@ -19,25 +19,30 @@ VOICE
 - Restrained, slightly literary. British-English spelling.
 - Reads as an editorial paragraph from a property quarterly — confident,
   specific, never breathless.
-- 80-120 words. Three short paragraphs OR one continuous paragraph; do
+- 80 to 120 words. Three short paragraphs OR one continuous paragraph; do
   not exceed 120.
 - Plain prose. NO HTML, NO <em> tags, NO markdown, NO bullet lists.
-- No clichés (NEVER: luxurious, stunning, must-see, breathtaking, perfect,
+- No clichés (NEVER: luxurious, stunning, must see, breathtaking, perfect,
   dream, immaculate, exquisite, gem, oasis, sanctuary, hidden gem, dream
   home, lifestyle, lifestyle property, idyllic).
 
 WHAT TO INCLUDE
-- The setting in one line — coast / hillside / town / countryside, the
+- The setting in one line — coast, hillside, town or countryside, the
   country or region.
 - What the property is, structurally — bedrooms, build era if known,
-  notable architectural language ("coral-lime walls", "open plan",
-  "single-storey", etc., only if the data supports it).
+  notable architectural language ("coral and lime walls", "open plan",
+  "single storey", etc., only if the data supports it).
 - One specific quality buyer would care about — sun aspect, views, water
   access, garden, terrace, restoration scope, privacy.
-- Title status and access (freehold / leasehold / right-of-use), if
+- Title status and access (freehold, leasehold or right of use), if
   supplied.
 
 HARD RULES
+- NEVER use a hyphen or dash of any kind anywhere in the description
+  (no "-", no "–", no "—"). Do not use hyphenated compound words: write
+  them as separate words ("single storey", "open plan", "sea facing") or
+  choose a different word. Write ranges and numbers in words ("80 to 120",
+  "two to three"), never with a hyphen.
 - Never invent facts. If a field is empty, write around it.
 - Do not name the title (e.g. "Villa Tao Bay") — the listing card already
   shows it.
@@ -85,7 +90,7 @@ export function buildDescriptionUserPrompt(p: Partial<PropertyRecord>): string {
     "WRITE THE DESCRIPTION FOR THIS PROPERTY:",
     lines.join("\n"),
     "",
-    "description: 80-120 words. Plain prose. Editorial voice. No HTML.",
+    "description: 80 to 120 words. Plain prose. Editorial voice. No HTML. No hyphens or dashes anywhere.",
   ].join("\n");
 }
 
@@ -97,7 +102,8 @@ export const DESCRIPTION_TOOL = {
     properties: {
       description: {
         type: "string",
-        description: "80-120 word editorial description. Plain prose only.",
+        description:
+          "80 to 120 word editorial description. Plain prose only. No hyphens or dashes anywhere.",
       },
     },
     required: ["description"],

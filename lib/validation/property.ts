@@ -214,13 +214,19 @@ const createRequired = {
   topography: requiredString("Add the topography."),
   boundary: requiredString("Add the boundary."),
   services: requiredString("Add the services."),
+  // Floor plan is REQUIRED on create — the brochure's page 4 is built from it,
+  // so a listing can't be completed without one. The form sends `floorPlans`
+  // (the array); the legacy single `floorPlan` is derived from floorPlans[0],
+  // so requiring the array is sufficient.
+  floorPlans: z
+    .array(z.string(), { message: "Add a floor plan." })
+    .min(1, "Add a floor plan."),
   // NOTE: assignedAgentId stays OPTIONAL even on create — agents are
   // force-assigned to themselves server-side and never send it. The "an agent
   // must be assigned" rule is enforced for non-agent creators in the create
   // route + the form (it knows the user's role); it can't live in the shared
-  // schema without breaking agent creates. Likewise yearRestored,
-  // restorationNotes, and the floor plan are the UI's "(optional)" fields and
-  // stay optional here.
+  // schema without breaking agent creates. Likewise yearRestored and
+  // restorationNotes are the UI's "(optional)" fields and stay optional here.
 };
 
 /** Create payload: strict required set (see createRequired). Unknown keys

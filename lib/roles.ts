@@ -62,7 +62,9 @@ const MATRIX: Record<Role, Permissions> = {
     createProperty: true,
     editProperty: "all",
     deleteProperty: false,
-    publishToWebsite: "all",
+    // Not a role baseline — Assistants get this as a DEFAULT GRANT (see
+    // DEFAULT_GRANTS) so the Owner can revoke it. Keep the role default false.
+    publishToWebsite: false,
     viewDocuments: "all",
     viewInquiries: "all",
     viewReports: true,
@@ -109,6 +111,63 @@ export function permissionsFor(role: Role): Permissions {
   return MATRIX[role];
 }
 
+export type Capability = keyof Permissions;
+
+// The capabilities the Owner can hand to another user from the Team page.
+// These are exactly the three things only the Owner can do by default; granting
+// one flips it ON for that user regardless of their role's baseline. Per the
+// client decision, even the two destructive ones are grantable (which loosens
+// the original "owner-only" hard rule on property/document deletion).
+export const GRANTABLE_CAPABILITIES: ReadonlyArray<{
+  key: Capability;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "publishToWebsite",
+    label: "Publish to website",
+    description:
+      "Put an approved property live on the public website, and take it down again.",
+  },
+  {
+    key: "manageUsers",
+    label: "Manage team",
+    description: "Add, edit and deactivate team members.",
+  },
+  {
+    key: "deleteProperty",
+    label: "Delete properties",
+    description: "Permanently remove a listing. Cannot be undone.",
+  },
+  {
+    key: "deleteDocument",
+    label: "Delete documents",
+    description: "Remove a mandate, title deed or deed plan from a property.",
+  },
+];
+
+const GRANTABLE_KEYS = new Set<string>(GRANTABLE_CAPABILITIES.map((c) => c.key));
+
+// Grants a user starts with, by role. These are ON by default but — unlike a
+// role baseline — the Owner can revoke them from the Team page. Assistants can
+// publish out of the box, yet the Owner can take it away.
+export const DEFAULT_GRANTS: Partial<Record<Role, Capability[]>> = {
+  assistant: ["publishToWebsite"],
+};
+
+export function defaultGrantsFor(role: Role): Capability[] {
+  return [...(DEFAULT_GRANTS[role] ?? [])];
+}
+
+/** Keep only recognised, grantable capability keys — defends the DB/UI against
+ *  a stray or stale key being persisted into a user's grants. */
+export function sanitizeGrants(grants: unknown): Capability[] {
+  if (!Array.isArray(grants)) return [];
+  return grants.filter(
+    (g): g is Capability => typeof g === "string" && GRANTABLE_KEYS.has(g)
+  );
+}
+
 /**
  * Capability check. For scoped capabilities pass the relationship of the acting
  * user to the target record via `isOwnerOfRecord` (i.e. the agent is the
@@ -121,8 +180,12 @@ export function permissionsFor(role: Role): Permissions {
 export function can(
   role: Role,
   capability: keyof Permissions,
-  ctx: { isOwnerOfRecord?: boolean } = {}
+  ctx: { isOwnerOfRecord?: boolean; grants?: readonly string[] } = {}
 ): boolean {
+  // Per-user grant overrides only ever ADD a capability beyond the role's
+  // baseline. Only grantable keys are ever stored, so an includes() is safe;
+  // a granted capability is always full ("all") scope.
+  if (ctx.grants && ctx.grants.includes(capability)) return true;
   const value = MATRIX[role][capability];
   if (typeof value === "boolean") return value;
   if (value === "all") return true;

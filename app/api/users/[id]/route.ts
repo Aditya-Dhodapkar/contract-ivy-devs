@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { guard, isFail } from "@/lib/guard";
+import { sanitizeGrants } from "@/lib/roles";
 import { getUser, updateUser, deleteUser } from "@/lib/repo/users";
 import { countPropertiesAssignedTo } from "@/lib/repo/properties";
 
@@ -14,6 +15,8 @@ const Body = z.object({
   email: z.string().email().optional(),
   role: z.enum(["owner", "assistant", "general_manager", "agent"]).optional(),
   assignedRegions: z.array(z.string().trim().min(1)).optional(),
+  // Capability grants. Editing these is Owner-only (enforced in PATCH).
+  grants: z.array(z.string()).optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -39,8 +42,43 @@ export async function PATCH(req: Request, { params }: Params) {
       { status: 400 }
     );
   }
+  const patch = { ...parsed.data };
+  const target = await getUser(id);
+  if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // A user merely GRANTED "manage team" can edit ordinary members, but must not
+  // be able to escalate: no touching the Owner account, no assigning the owner
+  // role, and no handing out permissions (those stay real-Owner-only).
+  if (g.user.role !== "owner") {
+    if (target.role === "owner") {
+      return NextResponse.json(
+        { error: "Only the owner can edit the owner account." },
+        { status: 403 }
+      );
+    }
+    if (patch.role === "owner") {
+      return NextResponse.json(
+        { error: "Only the owner can assign the owner role." },
+        { status: 403 }
+      );
+    }
+    if (patch.grants !== undefined) {
+      return NextResponse.json(
+        { error: "Only the owner can change permissions." },
+        { status: 403 }
+      );
+    }
+  }
+  // Never grant-edit an Owner (they already have everything).
+  if (patch.grants !== undefined && target.role === "owner") {
+    return NextResponse.json(
+      { error: "The owner already has every permission." },
+      { status: 400 }
+    );
+  }
+  if (patch.grants !== undefined) patch.grants = sanitizeGrants(patch.grants);
   try {
-    const updated = await updateUser(id, parsed.data);
+    const updated = await updateUser(id, patch);
     const { passwordHash, ...safe } = updated;
     return NextResponse.json({ user: safe });
   } catch (e) {
@@ -63,6 +101,14 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
   const target = await getUser(id);
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Only a real Owner can delete an Owner account.
+  if (target.role === "owner" && g.user.role !== "owner") {
+    return NextResponse.json(
+      { error: "Only the owner can delete the owner account." },
+      { status: 403 }
+    );
+  }
 
   const assigned = await countPropertiesAssignedTo(id);
   if (assigned > 0) {

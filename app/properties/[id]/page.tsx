@@ -4,8 +4,7 @@
 
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
-import { can } from "@/lib/roles";
+import { actingUser, canDo } from "@/lib/access";
 import { getProperty } from "@/lib/repo/properties";
 import { listForProperty as listDocs } from "@/lib/repo/documents";
 import { PropertyForm } from "@/components/PropertyForm";
@@ -27,7 +26,7 @@ export default async function PropertyDetail({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const user = await getSession();
+  const user = await actingUser();
   if (!user) redirect("/login");
 
   const p = await getProperty(id);
@@ -35,10 +34,11 @@ export default async function PropertyDetail({
   if (user.role === "agent" && p.assignedAgentId !== user.id) redirect("/properties");
 
   const isOwnerOfRecord = p.assignedAgentId === user.id;
-  const canEdit = can(user.role, "editProperty", { isOwnerOfRecord });
-  const canViewDocs = can(user.role, "viewDocuments", { isOwnerOfRecord });
-  const canUploadDocs = can(user.role, "uploadDocument", { isOwnerOfRecord });
-  const canDeleteDocs = can(user.role, "deleteDocument");
+  const canEdit = canDo(user, "editProperty", { isOwnerOfRecord });
+  const canViewDocs = canDo(user, "viewDocuments", { isOwnerOfRecord });
+  const canUploadDocs = canDo(user, "uploadDocument", { isOwnerOfRecord });
+  const canDeleteDocs = canDo(user, "deleteDocument");
+  const canPublish = canDo(user, "publishToWebsite", { isOwnerOfRecord });
 
   // Doc count for the jump-chip near the title. Cheap query (3 rows at most).
   const docCount = canViewDocs ? (await listDocs(p.id)).length : 0;
@@ -202,7 +202,12 @@ export default async function PropertyDetail({
           // the (taller) PropertyForm column. Without it the bordered paper
           // panel runs ~600px past its last button.
           <div className="self-start">
-            <PropertyControls p={p} role={user.role} />
+            <PropertyControls
+              p={p}
+              role={user.role}
+              canDelete={canDo(user, "deleteProperty")}
+              canPublish={canPublish}
+            />
           </div>
         ) : (
           <p className="text-sm text-ink-mute">

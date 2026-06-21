@@ -1,8 +1,10 @@
-// #19 view, #20/#41 edit, #47/#48 delete. Delete is hard-gated to the Owner
-// (brief non-negotiable #1) — belt and braces beyond can().
+// #19 view, #20/#41 edit, #47/#48 delete. Delete defaults to Owner-only, but
+// the Owner can GRANT property deletion to others (lib/roles GRANTABLE); the
+// guard() check honours those grants.
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { guard, isFail } from "@/lib/guard";
 import { can } from "@/lib/roles";
 import { getProperty, updateProperty, deleteProperty, type PropertyRecord } from "@/lib/repo/properties";
 import { listActiveAgents } from "@/lib/repo/users";
@@ -72,16 +74,11 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { id } = await params;
-  const user = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  // Owner by default; the Owner may grant deleteProperty to others. guard()
+  // reads the acting user's grants fresh and enforces the capability.
+  const g = await guard("deleteProperty");
+  if (isFail(g)) return g.response;
 
-  // Only the Owner. Not even via can() alone — explicit hard rule.
-  if (user.role !== "owner") {
-    return NextResponse.json(
-      { error: "Only the owner can delete a property." },
-      { status: 403 }
-    );
-  }
   if (!(await getProperty(id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

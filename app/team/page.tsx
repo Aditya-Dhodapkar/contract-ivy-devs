@@ -3,16 +3,16 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
-import { permissionsFor, ROLE_LABELS, type Role } from "@/lib/roles";
+import { actingUser, canDo } from "@/lib/access";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { listUsers, type UserRecord } from "@/lib/repo/users";
 import { relativeTime } from "@/lib/relative";
 import { Header } from "@/components/Header";
 
 export default async function TeamPage() {
-  const user = await getSession();
+  const user = await actingUser();
   if (!user) redirect("/login");
-  if (!permissionsFor(user.role).manageUsers) redirect("/dashboard");
+  if (!canDo(user, "manageUsers")) redirect("/dashboard");
 
   const users = await listUsers();
   const owners = users.filter((u) => u.role === "owner");

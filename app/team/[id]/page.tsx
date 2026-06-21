@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { getSession } from "@/lib/auth";
-import { permissionsFor } from "@/lib/roles";
+import { actingUser, canDo } from "@/lib/access";
+import { sanitizeGrants } from "@/lib/roles";
 import { getUser } from "@/lib/repo/users";
 import { Header } from "@/components/Header";
 import { UserForm } from "@/components/UserForm";
@@ -19,9 +19,9 @@ export default async function TeamMemberPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string; created?: string }>;
 }) {
-  const me = await getSession();
+  const me = await actingUser();
   if (!me) redirect("/login");
-  if (!permissionsFor(me.role).manageUsers) redirect("/dashboard");
+  if (!canDo(me, "manageUsers")) redirect("/dashboard");
 
   const { id } = await params;
   const sp = await searchParams;
@@ -29,6 +29,10 @@ export default async function TeamMemberPage({
   if (!u) notFound();
 
   const isSelf = me.id === u.id;
+  // Granting capabilities is Owner-only — even an assistant who's been granted
+  // "manage team" can edit users but cannot hand out permissions (no self- or
+  // peer-escalation). The Owner's own row isn't editable here (always full).
+  const canEditPermissions = me.role === "owner" && u.role !== "owner";
 
   return (
     <div className="min-h-screen bg-ivory">
@@ -63,7 +67,9 @@ export default async function TeamMemberPage({
               assignedRegions: u.assignedRegions,
               active: u.active,
               seed: u.seed,
+              grants: sanitizeGrants(u.grants),
             }}
+            canEditPermissions={canEditPermissions}
           />
 
           <aside className="space-y-8 border border-hairline/15 bg-paper p-6">

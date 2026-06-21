@@ -33,6 +33,14 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+  // Only a real Owner can mint another Owner — a user merely GRANTED "manage
+  // team" must not be able to escalate by creating an owner account.
+  if (parsed.data.role === "owner" && g.user.role !== "owner") {
+    return NextResponse.json(
+      { error: "Only the owner can create another owner." },
+      { status: 403 }
+    );
+  }
   try {
     const created = await createUser(parsed.data);
     const { passwordHash, ...safe } = created;

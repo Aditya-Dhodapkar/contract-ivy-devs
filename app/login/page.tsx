@@ -45,14 +45,14 @@ export default function LoginPage() {
             type="email"
             required
             placeholder="Email"
-            className="w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-sm outline-none focus:border-gold"
+            className="w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold"
           />
           <input
             name="password"
             type="password"
             required
             placeholder="Password"
-            className="w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-sm outline-none focus:border-gold"
+            className="w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold"
           />
         </div>
 

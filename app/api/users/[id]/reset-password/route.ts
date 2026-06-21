@@ -15,6 +15,15 @@ export async function POST(_req: Request, { params }: Params) {
   const target = await getUser(id);
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Only a real Owner can reset an Owner's password — otherwise a granted
+  // "manage team" user could reset the owner's password and take over.
+  if (target.role === "owner" && g.user.role !== "owner") {
+    return NextResponse.json(
+      { error: "Only the owner can reset the owner's password." },
+      { status: 403 }
+    );
+  }
+
   try {
     const { tempPassword } = await resetUserPassword(id);
     return NextResponse.json({ tempPassword });

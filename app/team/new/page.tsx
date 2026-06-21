@@ -1,15 +1,14 @@
 // #6 Create user — Owner only.
 
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
-import { permissionsFor } from "@/lib/roles";
+import { actingUser, canDo } from "@/lib/access";
 import { Header } from "@/components/Header";
 import { UserForm } from "@/components/UserForm";
 
 export default async function NewTeamMemberPage() {
-  const user = await getSession();
+  const user = await actingUser();
   if (!user) redirect("/login");
-  if (!permissionsFor(user.role).manageUsers) redirect("/dashboard");
+  if (!canDo(user, "manageUsers")) redirect("/dashboard");
 
   return (
     <div className="min-h-screen bg-ivory">

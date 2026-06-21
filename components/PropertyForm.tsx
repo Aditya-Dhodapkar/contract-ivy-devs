@@ -113,7 +113,7 @@ const FACING_OPTIONS: { value: import("@/lib/repo/properties").FacingDirection; 
 ];
 
 const field =
-  "w-full border border-hairline/20 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold";
+  "w-full border border-hairline/20 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold";
 const label = "block";
 const labelText = "mb-1 block text-eyebrow uppercase text-ink";
 
@@ -209,7 +209,12 @@ export function PropertyForm({
   // the form's onInput/onChange, React-managed collections via the effect
   // below) and cleared on a successful save.
   const [dirty, setDirty] = useState(false);
-  const markDirty = useCallback(() => setDirty(true), []);
+  // Bumped on every field edit so derived UI (the AI-draft gate) recomputes.
+  const [fieldTick, setFieldTick] = useState(0);
+  const markDirty = useCallback(() => {
+    setDirty(true);
+    setFieldTick((t) => t + 1);
+  }, []);
 
   // Snapshot what the form currently knows about the property. Used by
   // the AI draft endpoints (description + caption) so Claude can ground
@@ -786,26 +791,11 @@ export function PropertyForm({
     };
   }, [dirty]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (submitting.current) return; // hard block synchronous double-submits
-    submitting.current = true;
-    setSaving(true);
-    setError("");
-    setFieldErrors({});
-    const f = new FormData(e.currentTarget);
-
-    // H3: never save mid-upload, or photos still in flight would be silently
-    // missing from the record. The button is also disabled in this state, but
-    // guard here too (e.g. a stray Enter) and reset cleanly.
-    if (uploading > 0 || uploadingFloorPlan) {
-      setError("Photos are still uploading — please wait for them to finish, then save.");
-      setSaving(false);
-      submitting.current = false;
-      return;
-    }
-
-    const payload: Record<string, unknown> = {
+  // Assemble the property payload from the form + React-managed collections.
+  // Shared by onSubmit (the real save) and the AI-draft gate (which validates
+  // it against CreatePropertySchema to know when all required fields are in).
+  function buildPayload(f: FormData): Record<string, unknown> {
+    return {
       title: f.get("title") || undefined,
       country: f.get("country") || undefined,
       city: f.get("city") || undefined,
@@ -843,6 +833,46 @@ export function PropertyForm({
       photoCaptions: photos.map((u) => captionByUrl[u] || ""),
       photoDimensions: photos.map((u) => dimsByUrl[u] || null),
     };
+  }
+
+  // AI-draft gate: the "Let AI draft this" button stays disabled until every
+  // required field EXCEPT the description itself is valid (the description is
+  // the thing being drafted, so it's expected blank). On edit the schema is
+  // lenient, so drafting is always allowed. Re-evaluated each render; the form's
+  // onInput/onChange bumps `fieldTick` so native-field edits trigger a recompute.
+  void fieldTick;
+  function computeDraftReady(): boolean {
+    if (existing) return true;
+    if (!formRef.current) return false;
+    const parsed = CreatePropertySchema.safeParse(buildPayload(new FormData(formRef.current)));
+    if (parsed.success) return true;
+    const missing = Object.keys(zodToFieldErrors(parsed.error)).filter(
+      (k) => k !== "description"
+    );
+    return missing.length === 0;
+  }
+  const draftReady = computeDraftReady();
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (submitting.current) return; // hard block synchronous double-submits
+    submitting.current = true;
+    setSaving(true);
+    setError("");
+    setFieldErrors({});
+    const f = new FormData(e.currentTarget);
+
+    // H3: never save mid-upload, or photos still in flight would be silently
+    // missing from the record. The button is also disabled in this state, but
+    // guard here too (e.g. a stray Enter) and reset cleanly.
+    if (uploading > 0 || uploadingFloorPlan) {
+      setError("Photos are still uploading — please wait for them to finish, then save.");
+      setSaving(false);
+      submitting.current = false;
+      return;
+    }
+
+    const payload: Record<string, unknown> = buildPayload(f);
     if (showAgentPicker && assignedAgentId) {
       payload.assignedAgentId = assignedAgentId;
     }
@@ -1169,13 +1199,22 @@ export function PropertyForm({
             <button
               type="button"
               onClick={draftDescriptionFromAi}
-              disabled={aiDrafting}
+              disabled={aiDrafting || !draftReady}
               className="border border-gold-deep px-2 py-1 text-[10px] uppercase tracking-wider text-gold-deep hover:bg-gold-deep hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
-              title="Claude reads the rest of the form and drafts 80–120 words of SANSI-voice prose. Owner can edit afterwards."
+              title={
+                draftReady
+                  ? "Claude reads the rest of the form and drafts 80–120 words of SANSI-voice prose. Owner can edit afterwards."
+                  : "Fill in all the required fields above first — then the AI can draft from them."
+              }
             >
               {aiDrafting ? "Drafting…" : "✨ Let AI draft this"}
             </button>
           </span>
+          {!draftReady && !existing && (
+            <span className="mt-1 block text-xs text-ash">
+              Fill in the required fields above to enable AI drafting.
+            </span>
+          )}
           <textarea
             name="description"
             value={description}
@@ -1599,7 +1638,7 @@ export function PropertyForm({
 
         <div>
           <span className={labelText}>
-            Site / floor plan (optional){" "}
+            Site / floor plan{reqMark}{" "}
             {floorPlans.length > 0 && `(${floorPlans.length}/3)`}
           </span>
           {floorPlans.length > 0 && (
@@ -1648,8 +1687,9 @@ export function PropertyForm({
               />
             </label>
           )}
+          <FieldError name="floorPlans" />
           <p className="mt-2 text-xs text-ash">
-            Optional. Shown on page 4 of the brochure. 1 image: full panel.
+            Required. Shown on page 4 of the brochure. 1 image: full panel.
             2 images: stacked. 3 images: two stacked + a third below the
             particulars. <span className="font-medium text-ink-mute">Preferably 2–3 max</span>{" "}
             — site, floor, and one level plan covers most properties.

@@ -3,19 +3,18 @@
 // scoped permission as publishing.
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { can } from "@/lib/roles";
+import { actingUser, canDo } from "@/lib/access";
 import { getProperty, updateProperty } from "@/lib/repo/properties";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await getSession();
+  const user = await actingUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const prop = await getProperty(id);
   if (!prop) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (!can(user.role, "publishToWebsite", { isOwnerOfRecord: prop.assignedAgentId === user.id })) {
+  if (!canDo(user, "publishToWebsite", { isOwnerOfRecord: prop.assignedAgentId === user.id })) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

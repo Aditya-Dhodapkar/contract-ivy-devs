@@ -12,7 +12,7 @@ import path from "path";
 import bcrypt from "bcryptjs";
 import { usingDevData, DEV_USERS } from "@/lib/devUsers";
 import { supabase } from "@/lib/supabase";
-import type { Role } from "@/lib/roles";
+import { defaultGrantsFor, type Role } from "@/lib/roles";
 
 export interface UserRecord {
   id: string;
@@ -26,6 +26,9 @@ export interface UserRecord {
   createdAt: string;
   mustChangePassword?: boolean;
   lastLoginAt?: string;
+  /** Per-user capability grants set by the Owner (Team page). Each entry is a
+   *  grantable capability key turned ON beyond the role default. */
+  grants?: string[];
   /** Marks the 4 dev seed users (display only; only meaningful in dev mode). */
   seed?: boolean;
 }
@@ -47,6 +50,7 @@ function toRow(rec: Partial<UserRecord>): Row {
     must_change_password: rec.mustChangePassword,
     last_login_at: rec.lastLoginAt,
     created_at: rec.createdAt,
+    grants: rec.grants,
   });
 }
 
@@ -63,6 +67,7 @@ function fromRow(r: Row): UserRecord {
     createdAt: r.created_at as string,
     mustChangePassword: (r.must_change_password as boolean) ?? undefined,
     lastLoginAt: (r.last_login_at as string) ?? undefined,
+    grants: (r.grants as string[]) ?? undefined,
   };
 }
 
@@ -95,6 +100,7 @@ function devSeedRecords(): UserRecord[] {
     role: u.role,
     passwordHash: u.passwordHash,
     active: true,
+    grants: defaultGrantsFor(u.role),
     createdAt: "1970-01-01T00:00:00.000Z",
     seed: true,
   }));
@@ -188,6 +194,9 @@ export async function createUser(input: CreateUserInput): Promise<UserRecord> {
     active: true,
     passwordHash: await bcrypt.hash(input.password, 10),
     createdAt: new Date().toISOString(),
+    // Role-based starting grants (e.g. Assistants can publish by default). The
+    // Owner can revoke these later from the Team page.
+    grants: defaultGrantsFor(input.role),
   };
 
   if (usingDevData) {
@@ -226,6 +235,8 @@ export interface UpdateUserInput {
   personalAssistantId?: string;
   /** Set only if changing the password. Empty/undefined leaves it as-is. */
   password?: string;
+  /** Replace the user's capability grants. Undefined leaves them as-is. */
+  grants?: string[];
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<UserRecord> {
@@ -243,6 +254,7 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Us
     assignedRegions: patch.assignedRegions,
     personalAssistantId: patch.personalAssistantId,
     passwordHash,
+    grants: patch.grants,
   });
 }
 

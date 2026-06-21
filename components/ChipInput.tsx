@@ -79,7 +79,7 @@ export function ChipInput({
           onKeyDown={onKey}
           onBlur={() => add(draft)}
           placeholder={value.length === 0 ? placeholder : ""}
-          className="min-w-[8rem] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+          className="min-w-[8rem] flex-1 bg-transparent px-1 py-0.5 text-base outline-none"
         />
       </div>
       {available.length > 0 && (

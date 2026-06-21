@@ -16,9 +16,17 @@ import { ModalShell, modalBtnCancel, modalBtnDanger, modalBtnPrimary } from "@/c
 export function PropertyControls({
   p,
   role,
+  canDelete = role === "owner",
+  canPublish = true,
 }: {
   p: PropertyRecord;
   role: Role;
+  /** Whether the acting user may delete this property. Defaults to owner-only,
+   *  but the Owner can grant deletion to others (lib/roles GRANTABLE). */
+  canDelete?: boolean;
+  /** Whether the acting user may publish/unpublish + set visibility on this
+   *  property. Grant-aware (publishToWebsite). */
+  canPublish?: boolean;
 }) {
   const router = useRouter();
   const [msg, setMsg] = useState<string>("");
@@ -162,6 +170,8 @@ export function PropertyControls({
         )}
       </div>
 
+      {canPublish && (
+      <>
       <div>
         <p className="text-eyebrow uppercase text-ash">Website</p>
         <div className="mt-2 flex items-center gap-2">
@@ -222,8 +232,10 @@ export function PropertyControls({
           )}
         </div>
       </div>
+      </>
+      )}
 
-      {role === "owner" && (
+      {canDelete && (
         <div className="border-t border-hairline/15 pt-4">
           <button
             className="text-eyebrow uppercase text-red-700 hover:underline"
@@ -231,7 +243,7 @@ export function PropertyControls({
           >
             Delete property
           </button>
-          <p className="mt-1 text-xs text-ash">Only the owner can delete.</p>
+          <p className="mt-1 text-xs text-ash">Deleting a property cannot be undone.</p>
         </div>
       )}
 
@@ -293,7 +305,7 @@ export function PropertyControls({
               if (e.key === "Enter" && accessCode.trim()) confirmMakePrivate();
             }}
             placeholder="e.g. LAMU2026"
-            className="w-full border border-hairline/25 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold"
+            className="w-full border border-hairline/25 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold"
           />
         </label>
       </ModalShell>
@@ -326,7 +338,7 @@ export function PropertyControls({
             onChange={(e) => setChangesNote(e.target.value)}
             rows={4}
             placeholder="e.g. Need better photos of the kitchen and a signed mandate."
-            className="w-full border border-hairline/25 bg-ivory px-3 py-2 text-sm outline-none focus:border-gold"
+            className="w-full border border-hairline/25 bg-ivory px-3 py-2.5 text-base outline-none focus:border-gold"
           />
         </label>
       </ModalShell>
