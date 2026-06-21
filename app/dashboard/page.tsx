@@ -56,8 +56,8 @@ export default async function DashboardPage() {
   const pendingCount = user.role === "owner" ? await countPendingApprovals() : 0;
 
   const tiles = [
-    { show: true, title: "Properties", desc: "Browse & manage listings", href: "/properties", Icon: Building2 },
     { show: perms.createProperty, title: "Add property", desc: "Create a new record", href: "/properties/new", Icon: Plus },
+    { show: true, title: "Properties", desc: "Browse & manage listings", href: "/properties", Icon: Building2 },
     { show: perms.viewInquiries !== false, title: "Inquiries", desc: "Leads & follow-ups", href: "/leads", Icon: MessageSquare },
     { show: perms.viewReports, title: "Reports", desc: "Weekly activity", href: "/reports", Icon: BarChart3 },
     { show: canDo(user, "manageUsers"), title: "Team & roles", desc: "Members & permissions", href: "/team", Icon: Users },
@@ -77,9 +77,10 @@ export default async function DashboardPage() {
         <div className="mt-12 grid gap-10 lg:grid-cols-[1fr,18rem]">
           <section className="divide-y divide-hairline/15 border-y border-hairline/15">
             {tiles.map((t) => (
-              <a
+              <Link
                 key={t.href}
                 href={t.href}
+                prefetch
                 className="group flex items-center justify-between gap-6 bg-paper px-7 py-6 transition-colors hover:bg-ivory-deep"
               >
                 <div className="flex items-center gap-5">
@@ -96,7 +97,7 @@ export default async function DashboardPage() {
                 <span className="text-eyebrow uppercase text-gold-deep opacity-60 transition-opacity group-hover:opacity-100">
                   Open →
                 </span>
-              </a>
+              </Link>
             ))}
           </section>
 

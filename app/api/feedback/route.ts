@@ -28,6 +28,8 @@ type Body = {
   title?: string;
   body?: string;
   images?: ImageIn[];
+  /** Optional voice note recorded in the browser (webm/mp4/ogg), base64. */
+  audio?: ImageIn;
 };
 
 const CATEGORY_LABEL: Record<NonNullable<Body["category"]>, string> = {
@@ -50,7 +52,10 @@ function slugify(s: string): string {
 function extFromName(name: string, fallbackType = ""): string {
   const m = /\.([a-z0-9]+)$/i.exec(name);
   if (m) return m[1].toLowerCase();
-  if (fallbackType.startsWith("image/")) return fallbackType.slice(6);
+  // Derive from a MIME type like "audio/webm;codecs=opus" -> "webm".
+  if (fallbackType.includes("/")) {
+    return fallbackType.split("/")[1].split(";")[0].toLowerCase() || "bin";
+  }
   return "png";
 }
 
@@ -161,8 +166,16 @@ export async function POST(req: Request) {
   const title = (payload.title || "").trim();
   const body = (payload.body || "").trim();
   const images = Array.isArray(payload.images) ? payload.images : [];
-  if (!title || !body) {
-    return NextResponse.json({ error: "Title and details are required." }, { status: 400 });
+  let audio = payload.audio?.base64 ? payload.audio : null;
+  // Details can be typed OR spoken — require a title, plus either body or audio.
+  if (!title) {
+    return NextResponse.json({ error: "A short title is required." }, { status: 400 });
+  }
+  if (!body && !audio) {
+    return NextResponse.json(
+      { error: "Add details or record a voice note." },
+      { status: 400 }
+    );
   }
   if (images.length > 6) {
     return NextResponse.json({ error: "At most 6 screenshots, please." }, { status: 400 });
@@ -177,14 +190,15 @@ export async function POST(req: Request) {
   const imageMarkdown: string[] = [];
   const uploadErrors: string[] = [];
 
-  if (images.length > 0) {
+  if (images.length > 0 || audio) {
     try {
       await ensureFeedbackBranch(repo, FEEDBACK_BRANCH, token);
     } catch (e) {
       uploadErrors.push(`branch bootstrap: ${(e as Error).message}`);
-      // If we can't ensure the branch, fall back to skipping image upload
-      // entirely rather than half-committing somewhere unexpected.
+      // If we can't ensure the branch, fall back to skipping all attachments
+      // rather than half-committing somewhere unexpected.
       images.length = 0;
+      audio = null;
     }
   }
 
@@ -219,6 +233,39 @@ export async function POST(req: Request) {
     }
   }
 
+  // 1b. Commit the voice note (if any) to the same branch and link it. GitHub
+  // won't render an inline audio player for a branch-committed file, but the
+  // raw URL is fully playable when clicked.
+  let audioMarkdown = "";
+  if (audio?.base64) {
+    const ext = extFromName(audio.name || "", audio.type || "audio/webm");
+    const path = `feedback-audio/${ts}-${titleSlug}.${ext}`;
+    try {
+      const res = await ghFetch(
+        `/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            message: `feedback: attach ${path.split("/").pop()}`,
+            content: audio.base64,
+            branch: FEEDBACK_BRANCH,
+          }),
+        },
+        token
+      );
+      if (res.ok) {
+        const j = (await res.json()) as { content?: { html_url?: string; download_url?: string } };
+        const rawUrl = j.content?.download_url || j.content?.html_url || "";
+        if (rawUrl) audioMarkdown = `🎙️ [Voice note — click to play or download](${rawUrl})`;
+      } else {
+        const text = await res.text().catch(() => "");
+        uploadErrors.push(`audio: HTTP ${res.status} ${text.slice(0, 200)}`);
+      }
+    } catch (e) {
+      uploadErrors.push(`audio: ${(e as Error).message}`);
+    }
+  }
+
   // 2. Compose the issue body. Submitter context + the user's prose + any
   // image markdown + a footer with upload errors if any.
   const submitter = `${user.name} (${user.email}) · role: ${user.role}`;
@@ -232,8 +279,11 @@ export async function POST(req: Request) {
     "",
     "---",
     "",
-    body,
+    body || "_(No typed details — see the voice note below.)_",
   ];
+  if (audioMarkdown) {
+    sections.push("", "---", "", "### Voice note", "", audioMarkdown);
+  }
   if (imageMarkdown.length) {
     sections.push("", "---", "", "### Screenshots", "", ...imageMarkdown);
   }

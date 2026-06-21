@@ -48,6 +48,7 @@ export default async function BrochurePage({
             photoDimensions={p.photoDimensions ?? []}
             photoCaptions={p.photoCaptions ?? []}
             nearbyCount={p.nearby?.length ?? 0}
+            hasCoordinates={p.latitude != null && p.longitude != null}
           />
         </div>
       </div>

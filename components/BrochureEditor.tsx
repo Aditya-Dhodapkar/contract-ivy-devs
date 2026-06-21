@@ -29,6 +29,10 @@ export interface BrochureEditorProps {
   /** Number of `nearby` entries on the property record — needed by the
    *  page-3 picker to grey out "Within reach" when there's nothing to list. */
   nearbyCount: number;
+  /** Whether the property has latitude AND longitude. The page-3 locality map
+   *  needs them; if absent we block generation until she adds them or picks a
+   *  no-map page-3 variant. */
+  hasCoordinates: boolean;
 }
 
 export function BrochureEditor({
@@ -36,6 +40,7 @@ export function BrochureEditor({
   photos,
   photoDimensions,
   nearbyCount,
+  hasCoordinates,
 }: BrochureEditorProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -64,7 +69,18 @@ export function BrochureEditor({
   // (cover + at least 2 gallery shots). Don't show the editor otherwise.
   const showGalleryEditor = photos.length >= 3;
 
+  // The locality map (default page 3) can't render without coordinates.
+  const needsCoordinates = page3Variant === "location" && !hasCoordinates;
+
   async function generatePdf() {
+    // Block early with a clear prompt rather than producing a broken page 3.
+    if (needsCoordinates) {
+      setStatus("error");
+      setError(
+        "Page 3 is set to the locality map, but this property has no coordinates. Add latitude & longitude on the property's edit page, or switch page 3 to a no-map option below."
+      );
+      return;
+    }
     setStatus("rendering");
     setError("");
     try {
@@ -127,6 +143,7 @@ export function BrochureEditor({
       <Page3VariantEditor
         totalPhotos={photos.length}
         nearbyCount={nearbyCount}
+        hasCoordinates={hasCoordinates}
         onChange={handlePage3Change}
       />
 
@@ -143,7 +160,12 @@ export function BrochureEditor({
       <div className="flex flex-wrap items-center gap-4 border-t border-hairline/15 pt-5">
         <button
           onClick={generatePdf}
-          disabled={busy}
+          disabled={busy || needsCoordinates}
+          title={
+            needsCoordinates
+              ? "Add coordinates or pick a no-map page 3 first"
+              : undefined
+          }
           className="bg-gold-deep px-6 py-3 text-eyebrow uppercase text-paper hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? "Generating PDF…" : status === "done" ? "Generate again" : "Generate brochure"}

@@ -182,6 +182,18 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
+  // The default "location" page renders a locality map, which needs
+  // coordinates. Mirror of the client-side gate (BrochureEditor / Page3VariantEditor).
+  if (page3Variant === "location" && (p.latitude == null || p.longitude == null)) {
+    return NextResponse.json(
+      {
+        error:
+          "Page 3 is set to the locality map, but this property has no coordinates. Add latitude & longitude on the property's edit page, or choose a no-map page-3 variant.",
+      },
+      { status: 400 }
+    );
+  }
+
   // Within-reach also has a data minimum (the editor enforces it client-
   // side; here's the server-side mirror).
   if (page3Variant === "within-reach" && (p.nearby?.length ?? 0) < 2) {

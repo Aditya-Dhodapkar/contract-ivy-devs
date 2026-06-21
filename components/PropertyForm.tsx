@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PropertyRecord } from "@/lib/repo/properties";
-import type { Role } from "@/lib/roles";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { ChipInput } from "@/components/ChipInput";
 import { precheckImageFile } from "@/lib/imageMime";
 import { parseCoordinatePair } from "@/lib/coordinates";
@@ -157,7 +157,7 @@ export function PropertyForm({
   currentUserRole: Role;
 }) {
   const router = useRouter();
-  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [agents, setAgents] = useState<{ id: string; name: string; role?: string }[]>([]);
   const [assignedAgentId, setAssignedAgentId] = useState<string>(
     existing?.assignedAgentId ?? ""
   );
@@ -397,16 +397,10 @@ export function PropertyForm({
   const [servicesChips, setServicesChips] = useState<string[]>(
     () => siteStringToChips(existing?.services)
   );
-  // Brochure toggles default to true (show by default). Owner unticks per
-  // property when the seller asked for the map or plot to be hidden.
-  // showMapOnBrochure state was removed when the page-3 variant editor
-  // shipped; the editor's Show map / Hide map toggle (with four
-  // alternatives) is now the single source of truth. The DB column stays
-  // for migration safety but the form no longer touches it — saved
-  // properties retain whatever value was last persisted.
-  const [showPlotOnBrochure, setShowPlotOnBrochure] = useState<boolean>(
-    existing?.showPlotOnBrochure !== false
-  );
+  // The brochure's site-plan page now auto-includes whenever the property has
+  // plot width + length (it's skipped otherwise, e.g. apartments). There's no
+  // manual toggle — the showMapOnBrochure / showPlotOnBrochure DB columns stay
+  // for migration safety but the form no longer sets them.
 
   // Price as a controlled, comma-grouped string. We keep digits-only in state
   // implicitly by reformatting on every keystroke; the raw number is parsed
@@ -822,7 +816,6 @@ export function PropertyForm({
       facingDirection: f.get("facingDirection") || undefined,
       plotWidthMeters: f.get("plotWidthMeters") ? Number(f.get("plotWidthMeters")) : undefined,
       plotLengthMeters: f.get("plotLengthMeters") ? Number(f.get("plotLengthMeters")) : undefined,
-      showPlotOnBrochure,
       description: f.get("description") || undefined,
       highlights,
       amenities,
@@ -889,12 +882,8 @@ export function PropertyForm({
     const fe: Record<string, string> = parsed.success
       ? {}
       : zodToFieldErrors(parsed.error);
-    // On create, a non-agent must assign an agent. This lives here (and in the
-    // create route) rather than the shared schema because agents are
-    // force-assigned server-side and never send the field.
-    if (!existing && showAgentPicker && !assignedAgentId) {
-      fe.assignedAgentId = "Choose the assigned agent.";
-    }
+    // Assignment is OPTIONAL — a property can be created unassigned and assigned
+    // later. (Assignment is still required by the publish gate before going live.)
     if (Object.keys(fe).length > 0) {
       setFieldErrors(fe);
       const keys = Object.keys(fe);
@@ -1029,7 +1018,7 @@ export function PropertyForm({
 
       {showAgentPicker && (
         <label className={label}>
-          <span className={labelText}>Assigned agent{reqMark}</span>
+          <span className={labelText}>Assigned to</span>
           <select
             name="assignedAgentId"
             value={assignedAgentId}
@@ -1038,13 +1027,16 @@ export function PropertyForm({
           >
             <option value="">Unassigned</option>
             {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.role ? ` (${ROLE_LABELS[a.role as Role] ?? a.role})` : ""}
+              </option>
             ))}
           </select>
           <FieldError name="assignedAgentId" />
           {agentsError ? (
             <p className="mt-1 text-xs text-red-700" role="alert">
-              Couldn&apos;t load the agent list.{" "}
+              Couldn&apos;t load the team list.{" "}
               <button
                 type="button"
                 onClick={loadAgents}
@@ -1056,7 +1048,8 @@ export function PropertyForm({
             </p>
           ) : (
             <p className="mt-1 text-xs text-ash">
-              Required before this property can be published. Invite agents in Team & roles.
+              Optional — you, an assistant, or an agent. Can be left unassigned
+              now and set later (assignment is required before publishing).
             </p>
           )}
         </label>
@@ -1507,10 +1500,12 @@ export function PropertyForm({
       </div>
 
       <section className="space-y-4 border-t border-hairline/15 pt-5">
-        <p className="text-eyebrow uppercase text-ash">Coordinates (for brochure map)</p>
+        <p className="text-eyebrow uppercase text-ash">
+          Coordinates (for brochure map) <span className="text-ash normal-case tracking-normal">(optional)</span>
+        </p>
         <div className="grid grid-cols-2 gap-4">
           <label className={label}>
-            <span className={labelText}>Latitude{reqMark}</span>
+            <span className={labelText}>Latitude</span>
             <input
               name="latitude"
               type="number"
@@ -1522,7 +1517,7 @@ export function PropertyForm({
             />
           </label>
           <label className={label}>
-            <span className={labelText}>Longitude{reqMark}</span>
+            <span className={labelText}>Longitude</span>
             <input
               name="longitude"
               type="number"
@@ -1695,29 +1690,6 @@ export function PropertyForm({
             — site, floor, and one level plan covers most properties.
           </p>
         </div>
-      </section>
-
-      <section className="space-y-3 border-t border-hairline/15 pt-5">
-        <p className="text-eyebrow uppercase text-ash">Brochure options</p>
-        {/* The "Include map location" checkbox lived here until the page-3
-            variant editor shipped. That editor (Show map / Hide map +
-            four alternatives) is now the single source of truth for page
-            3 — the checkbox would only overlap. The showMapOnBrochure DB
-            column stays for migration safety but is no longer read. */}
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={showPlotOnBrochure}
-            onChange={(e) => setShowPlotOnBrochure(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-gold-deep"
-          />
-          <span>
-            Include plot diagram on the brochure
-            <span className="ml-1 text-xs text-ash">
-              — needs width + length above; skip for apartments.
-            </span>
-          </span>
-        </label>
       </section>
 
       {error && <p className="text-sm text-red-700">{error}</p>}

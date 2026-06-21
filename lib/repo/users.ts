@@ -174,6 +174,23 @@ export async function listActiveAgents(): Promise<UserRecord[]> {
   return (data ?? []).map(fromRow);
 }
 
+/** Active users a property can be ASSIGNED to. Broader than agents — the owner
+ *  can assign a listing to herself or an assistant, not just agents. GMs are
+ *  read-only, so they're excluded. */
+export async function listAssignableUsers(): Promise<UserRecord[]> {
+  const assignable: Role[] = ["owner", "assistant", "agent"];
+  if (usingDevData) {
+    return (await listUsers()).filter((u) => u.active && assignable.includes(u.role));
+  }
+  const { data, error } = await supabase()
+    .from("users")
+    .select("*")
+    .eq("active", true)
+    .in("role", assignable);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(fromRow);
+}
+
 export interface CreateUserInput {
   name: string;
   email: string;

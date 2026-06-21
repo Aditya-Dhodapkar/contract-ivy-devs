@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { guard, isFail } from "@/lib/guard";
 import { listProperties, createProperty, type PropertyRecord } from "@/lib/repo/properties";
-import { listActiveAgents } from "@/lib/repo/users";
+import { listAssignableUsers } from "@/lib/repo/users";
 import { CreatePropertySchema } from "@/lib/validation/property";
 import { validationError } from "@/lib/apiError";
 
@@ -29,26 +29,16 @@ export async function POST(req: Request) {
   const assignedAgentId =
     g.user.role === "agent" ? g.user.id : parsed.data.assignedAgentId;
 
-  // A non-agent creator must assign an agent (it's a required field on create,
-  // but enforced here rather than in the shared schema because agents are
-  // force-assigned above and never send it). And the chosen agent must be a
-  // real, active agent (L2).
-  if (g.user.role !== "agent") {
-    if (!assignedAgentId) {
+  // Assignment is OPTIONAL — a non-agent may leave it unassigned and assign
+  // later. But if they DID pick someone, it must be a real, active, assignable
+  // user (owner / assistant / agent).
+  if (g.user.role !== "agent" && assignedAgentId) {
+    const assignable = await listAssignableUsers();
+    if (!assignable.some((a) => a.id === assignedAgentId)) {
       return NextResponse.json(
         {
-          error: "Assign an agent before saving.",
-          fields: { assignedAgentId: "Choose the assigned agent." },
-        },
-        { status: 422 }
-      );
-    }
-    const agents = await listActiveAgents();
-    if (!agents.some((a) => a.id === assignedAgentId)) {
-      return NextResponse.json(
-        {
-          error: "That agent isn't available — pick an active agent.",
-          fields: { assignedAgentId: "Choose an active agent." },
+          error: "That person isn't available — pick an active team member.",
+          fields: { assignedAgentId: "Choose an active team member." },
         },
         { status: 422 }
       );

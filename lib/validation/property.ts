@@ -199,14 +199,9 @@ const createRequired = {
   photos: z
     .array(z.string(), { message: "Add at least one photo." })
     .min(1, "Add at least one photo."),
-  latitude: z
-    .number({ message: "Add the latitude." })
-    .min(-90, "Latitude must be between -90 and 90.")
-    .max(90, "Latitude must be between -90 and 90."),
-  longitude: z
-    .number({ message: "Add the longitude." })
-    .min(-180, "Longitude must be between -180 and 180.")
-    .max(180, "Longitude must be between -180 and 180."),
+  // latitude/longitude are OPTIONAL even on create — they only feed the
+  // brochure's locality map (page 3), which the owner can swap out. When
+  // supplied they're still range-checked via the base schema.
   tenure: z.enum(TENURES, { message: "Choose the tenure." }),
   shape: requiredString("Add the plot shape."),
   siteCondition: requiredString("Add the site condition."),

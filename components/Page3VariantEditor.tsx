@@ -56,12 +56,15 @@ export interface Page3VariantEditorProps {
   totalPhotos: number;
   /** Whether the property has any `nearby` entries — Within reach needs ≥2. */
   nearbyCount: number;
+  /** Whether the property has coordinates — the map option needs them. */
+  hasCoordinates: boolean;
   onChange: (variant: Page3Variant) => void;
 }
 
 export function Page3VariantEditor({
   totalPhotos,
   nearbyCount,
+  hasCoordinates,
   onChange,
 }: Page3VariantEditorProps) {
   // Default: show the map (current behaviour).
@@ -151,9 +154,21 @@ export function Page3VariantEditor({
       </div>
 
       {showMap ? (
-        <p className="mt-3 text-xs text-ash">
-          Default. Page 3 shows the locality map + "Within reach" nearby list.
-        </p>
+        hasCoordinates ? (
+          <p className="mt-3 text-xs text-ash">
+            Default. Page 3 shows the locality map + "Within reach" nearby list.
+          </p>
+        ) : (
+          <div className="mt-3 border-l-2 border-red-400 bg-red-50/60 px-3 py-2.5 text-xs text-red-700">
+            <p className="font-semibold">No coordinates on this property.</p>
+            <p className="mt-1">
+              The map needs a latitude &amp; longitude. Add them on the
+              property&rsquo;s edit page, then come back — or choose
+              &ldquo;Hide map&rdquo; and pick a no-map page 3 below. You can&rsquo;t
+              generate with the map until coordinates are set.
+            </p>
+          </div>
+        )
       ) : (
         <div className="mt-5">
           <p className="text-eyebrow uppercase text-ash">Pick an alternative</p>

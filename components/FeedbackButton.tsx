@@ -6,7 +6,7 @@
 // issue in the dev's GitHub repo — Carol & team never see GitHub; to
 // them the feedback just "lands with the developer".
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ModalShell, modalBtnCancel, modalBtnPrimary } from "@/components/ModalShell";
 
 type Category = "bug" | "feature" | "other";
@@ -30,11 +30,91 @@ export function FeedbackButton() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{ number: number } | null>(null);
 
+  // Voice note recording state.
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const MAX_SECONDS = 180; // 3-minute cap keeps the payload sane
+
+  function stopTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop(); // fires onstop → builds the blob, releases mic
+    setRecording(false);
+    stopTimer();
+  }
+
+  async function startRecording() {
+    setError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = ["audio/webm", "audio/mp4", "audio/ogg"].find(
+        (m) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)
+      );
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const type = mr.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        setAudioBlob(blob);
+        setAudioUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(blob);
+        });
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      recorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+      let secs = 0;
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        secs += 1;
+        setElapsed(secs);
+        if (secs >= MAX_SECONDS) {
+          mr.stop();
+          setRecording(false);
+          stopTimer();
+        }
+      }, 1000);
+    } catch {
+      setError("Couldn't access the microphone — check your browser's mic permission.");
+    }
+  }
+
+  function removeAudio() {
+    setAudioBlob(null);
+    setAudioUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+    setElapsed(0);
+  }
+
+  function fmt(s: number): string {
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
   function reset() {
+    if (recording) stopRecording();
     setCategory("bug");
     setTitle("");
     setBody("");
     setImages([]);
+    removeAudio();
     setError("");
     setSuccess(null);
   }
@@ -48,23 +128,38 @@ export function FeedbackButton() {
 
   // Convert each image to base64 so the API route can hand it straight to
   // GitHub's contents API without doing FormData parsing on the server.
-  async function fileToB64(f: File): Promise<{ name: string; type: string; base64: string }> {
+  async function fileToB64(f: Blob, name: string): Promise<{ name: string; type: string; base64: string }> {
     const buf = await f.arrayBuffer();
     let binary = "";
     const bytes = new Uint8Array(buf);
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return { name: f.name, type: f.type || "application/octet-stream", base64: btoa(binary) };
+    return { name, type: f.type || "application/octet-stream", base64: btoa(binary) };
   }
 
   async function submit() {
-    if (!title.trim() || !body.trim()) {
-      setError("Please add a short title and a description.");
+    if (!title.trim()) {
+      setError("Please add a short title.");
+      return;
+    }
+    if (!body.trim() && !audioBlob) {
+      setError("Add some details, or record a voice note.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const encoded = await Promise.all(images.map(fileToB64));
+      const encoded = await Promise.all(
+        images.map((f) => fileToB64(f, f.name))
+      );
+      let audio: { name: string; type: string; base64: string } | undefined;
+      if (audioBlob) {
+        const ext = audioBlob.type.includes("mp4")
+          ? "mp4"
+          : audioBlob.type.includes("ogg")
+            ? "ogg"
+            : "webm";
+        audio = await fileToB64(audioBlob, `voice-note.${ext}`);
+      }
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -73,6 +168,7 @@ export function FeedbackButton() {
           title: title.trim(),
           body: body.trim(),
           images: encoded,
+          audio,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -113,7 +209,7 @@ export function FeedbackButton() {
               <button
                 onClick={submit}
                 className={modalBtnPrimary}
-                disabled={busy || !title.trim() || !body.trim()}
+                disabled={busy || !title.trim() || (!body.trim() && !audioBlob)}
               >
                 {busy ? "Sending…" : "Send"}
               </button>
@@ -167,10 +263,56 @@ export function FeedbackButton() {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={5}
-                placeholder="What happened, what you expected, anything else useful."
+                placeholder="What happened, what you expected, anything else useful. (Or record a voice note below instead.)"
                 className={field}
               />
             </label>
+
+            <div className="block">
+              <span className="mb-2 block text-eyebrow uppercase">Voice note (optional)</span>
+              <p className="mb-2 text-xs text-ink-mute">
+                Prefer to talk? Record your idea or issue instead of typing it.
+              </p>
+              {!audioBlob ? (
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  className={
+                    recording
+                      ? "inline-flex items-center gap-2 border border-red-400 bg-red-50 px-4 py-2 text-eyebrow uppercase text-red-700"
+                      : "inline-flex items-center gap-2 border border-hairline/30 bg-paper px-4 py-2 text-eyebrow uppercase text-ink hover:bg-ivory-deep"
+                  }
+                >
+                  {recording ? (
+                    <>
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden />
+                      Stop · {fmt(elapsed)}
+                    </>
+                  ) : (
+                    <>
+                      <span aria-hidden>🎙️</span> Record voice note
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio controls src={audioUrl} className="w-full" />
+                  <button
+                    type="button"
+                    onClick={removeAudio}
+                    className="text-xs text-ash hover:text-red-700"
+                  >
+                    Remove &amp; re-record
+                  </button>
+                </div>
+              )}
+              {recording && (
+                <p className="mt-1.5 text-xs text-ash">
+                  Recording… up to {MAX_SECONDS / 60} minutes, then it stops automatically.
+                </p>
+              )}
+            </div>
 
             <label className="block">
               <span className="mb-2 block text-eyebrow uppercase">
