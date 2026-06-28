@@ -12,6 +12,7 @@ const PUBLIC = [
   "/reset-password",
   "/uploads",
   "/sansi-logo.jpg", // brand logo shown on the public login page
+  "/api/keepalive", // Supabase keep-alive cron — must reach the DB unauthenticated
 ];
 
 export async function middleware(req: NextRequest) {
